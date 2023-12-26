@@ -12,12 +12,20 @@ interface IncrementBehavior {
 	lightness: number;
 }
 
+interface RandomBehavior {
+	isHueRandom: boolean;
+	isSaturationRandom: boolean;
+	isLightnessRandom: boolean;
+	hue: number;
+	saturation: number;
+	lightness: number;
+}
+
 interface ColorCyclerSettings {
 	color: HSL;
 	behavior: Behavior;
-	behaviors: {
-		[Behavior.INCREMENT]: IncrementBehavior;
-	};
+	[Behavior.INCREMENT]: IncrementBehavior;
+	[Behavior.RANDOM]: RandomBehavior;
 }
 
 const DEFAULT_SETTINGS: ColorCyclerSettings = {
@@ -27,12 +35,18 @@ const DEFAULT_SETTINGS: ColorCyclerSettings = {
 		l: 50,
 	},
 	behavior: Behavior.INCREMENT,
-	behaviors: {
-		increment: {
-			degrees: 30,
-			saturation: 100,
-			lightness: 50,
-		},
+	increment: {
+		degrees: 30,
+		saturation: 100,
+		lightness: 50,
+	},
+	random: {
+		isHueRandom: true,
+		isSaturationRandom: true,
+		isLightnessRandom: true,
+		hue: 0,
+		saturation: 100,
+		lightness: 50,
 	},
 };
 
@@ -120,13 +134,47 @@ export default class ColorCycler extends Plugin {
 		this.updateColor(this.settings.color);
 	}
 
-	cycleColor() {
+	incrementColor() {
 		const currentHue = this.settings.color.h;
-		const degrees = this.settings.behaviors.increment.degrees;
+		const degrees = this.settings.increment.degrees;
 		let newHue = currentHue + degrees;
 
 		this.settings.color.h = newHue;
 		this.updateColor(this.settings.color);
+	}
+
+	randomizeColor() {
+		const hue = this.settings.random.isHueRandom
+			? Math.floor(Math.random() * 360)
+			: this.settings.random.hue;
+		const saturation = this.settings.random.isSaturationRandom
+			? Math.floor(Math.random() * 100)
+			: this.settings.random.saturation;
+		const lightness = this.settings.random.isLightnessRandom
+			? Math.floor(Math.random() * 100)
+			: this.settings.random.lightness;
+
+		this.settings.color = {
+			h: hue,
+			s: saturation,
+			l: lightness,
+		};
+
+		this.updateColor(this.settings.color);
+	}
+
+	cycleColor() {
+		switch (this.settings.behavior) {
+			case Behavior.INCREMENT:
+				this.incrementColor();
+				break;
+			case Behavior.RANDOM:
+				this.randomizeColor();
+				break;
+			case Behavior.PRESET:
+			default:
+				this.resetColor();
+		}
 	}
 }
 
@@ -166,16 +214,18 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 		const showIncrementSettings = () => {
 			containerEl.createEl("h2", { text: "Increment settings" });
 			new Setting(containerEl)
-				.setName("Degrees")
-				.setDesc("Degrees of the color wheel to advance on each click")
+				.setName("Hue degrees")
+				.setDesc(
+					"Hue angle degrees of the color wheel to advance on each click"
+				)
 				.addText((text) =>
 					text
 						.setPlaceholder("1-359")
 						.setValue(
-							this.plugin.settings.behaviors.increment.degrees.toString()
+							this.plugin.settings.increment.degrees.toString()
 						)
 						.onChange(async (value) => {
-							this.plugin.settings.behaviors.increment.degrees =
+							this.plugin.settings.increment.degrees =
 								parseInt(value);
 							// reset hue to 0 so increment behaves as expected
 							this.plugin.updateColor({
@@ -194,7 +244,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 					text
 						.setPlaceholder("0-100")
 						.setValue(
-							this.plugin.settings.behaviors.increment.saturation.toString()
+							this.plugin.settings.increment.saturation.toString()
 						)
 						.onChange(async (value) => {
 							this.plugin.updateColor({
@@ -222,6 +272,136 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 							await this.plugin.saveSettings();
 						})
 				);
+		};
+
+		const showRandomSettings = () => {
+			containerEl.createEl("h2", { text: "Random settings" });
+
+			new Setting(containerEl)
+				.setName("Randomize hue")
+				.setDesc("Randomize hue angle on each click")
+				.addToggle((toggle) =>
+					toggle
+						.setValue(this.plugin.settings.random.isHueRandom)
+						.onChange(async (value) => {
+							this.plugin.settings.random.isHueRandom = value;
+							await this.plugin.saveSettings();
+							this.display();
+						})
+				);
+
+			if (!this.plugin.settings.random.isHueRandom) {
+				new Setting(containerEl)
+					.setName("Hue angle")
+					.setDesc(
+						"Static hue angle of the color wheel to use if not randomized"
+					)
+					.addText((text) =>
+						text
+							.setPlaceholder("0-360")
+							.setValue(
+								this.plugin.settings.random.hue.toString()
+							)
+							.onChange(async (value) => {
+								this.plugin.settings.random.hue =
+									parseInt(value);
+								this.plugin.updateColor({
+									h: this.plugin.settings.random.hue,
+									s: this.plugin.settings.color.s,
+									l: this.plugin.settings.color.l,
+								});
+								await this.plugin.saveSettings();
+							})
+					)
+					// this is redundant
+					.setDisabled(this.plugin.settings.random.isHueRandom);
+			}
+
+			new Setting(containerEl)
+				.setName("Randomize saturation")
+				.setDesc("Randomize saturation percentage on each click")
+				.addToggle((toggle) =>
+					toggle
+						.setValue(
+							this.plugin.settings.random.isSaturationRandom
+						)
+						.onChange(async (value) => {
+							this.plugin.settings.random.isSaturationRandom =
+								value;
+							await this.plugin.saveSettings();
+							this.display();
+						})
+				);
+
+			if (!this.plugin.settings.random.isSaturationRandom) {
+				new Setting(containerEl)
+					.setName("Saturation")
+					.setDesc(
+						"Static saturation percentage to use if not randomized"
+					)
+					.addText((text) =>
+						text
+							.setPlaceholder("0-100")
+							.setValue(
+								this.plugin.settings.random.saturation.toString()
+							)
+							.onChange(async (value) => {
+								this.plugin.settings.random.saturation =
+									parseInt(value);
+								this.plugin.updateColor({
+									h: this.plugin.settings.color.h,
+									s: this.plugin.settings.random.saturation,
+									l: this.plugin.settings.color.l,
+								});
+								await this.plugin.saveSettings();
+							})
+					)
+					// this is redundant
+					.setDisabled(
+						this.plugin.settings.random.isSaturationRandom
+					);
+			}
+
+			new Setting(containerEl)
+				.setName("Randomize lightness")
+				.setDesc("Randomize lightness percentage on each click")
+				.addToggle((toggle) =>
+					toggle
+						.setValue(this.plugin.settings.random.isLightnessRandom)
+						.onChange(async (value) => {
+							this.plugin.settings.random.isLightnessRandom =
+								value;
+							await this.plugin.saveSettings();
+							this.display();
+						})
+				);
+
+			if (!this.plugin.settings.random.isLightnessRandom) {
+				new Setting(containerEl)
+					.setName("Lightness")
+					.setDesc(
+						"Static lightness percentage to use if not randomized"
+					)
+					.addText((text) =>
+						text
+							.setPlaceholder("0-100")
+							.setValue(
+								this.plugin.settings.random.lightness.toString()
+							)
+							.onChange(async (value) => {
+								this.plugin.settings.random.lightness =
+									parseInt(value);
+								this.plugin.updateColor({
+									h: this.plugin.settings.color.h,
+									s: this.plugin.settings.color.s,
+									l: this.plugin.settings.random.lightness,
+								});
+								await this.plugin.saveSettings();
+							})
+					)
+					// this is redundant
+					.setDisabled(this.plugin.settings.random.isLightnessRandom);
+			}
 		};
 
 		new Setting(containerEl)
@@ -252,7 +432,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 				showIncrementSettings();
 				break;
 			case Behavior.RANDOM:
-				containerEl.createEl("p", { text: "foo" });
+				showRandomSettings();
 				break;
 			case Behavior.PRESET:
 			default:

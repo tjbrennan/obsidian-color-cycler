@@ -3,7 +3,7 @@
 	"name": "Color Cycler",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "This plugin changes the default theme color of Obsidian to a new color at specified intervals",
+	"description": "This plugin dynamically changes the default accent color of your Obsidian theme",
 	"author": "tjbrennan",
 	"authorUrl": "https://github.com/tjbrennan",
 	"isDesktopOnly": false
