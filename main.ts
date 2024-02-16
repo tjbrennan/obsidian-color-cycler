@@ -21,11 +21,17 @@ interface RandomBehavior {
 	lightness: number;
 }
 
+interface PresetBehavior {
+	currentPresetIndex: number;
+	colorList: HSL[];
+}
+
 interface ColorCyclerSettings {
 	color: HSL;
 	behavior: Behavior;
 	[Behavior.INCREMENT]: IncrementBehavior;
 	[Behavior.RANDOM]: RandomBehavior;
+	[Behavior.PRESET]: PresetBehavior;
 }
 
 const DEFAULT_SETTINGS: ColorCyclerSettings = {
@@ -47,6 +53,10 @@ const DEFAULT_SETTINGS: ColorCyclerSettings = {
 		hue: 0,
 		saturation: 100,
 		lightness: 50,
+	},
+	preset: {
+		currentPresetIndex: 0,
+		colorList: [],
 	},
 };
 
@@ -122,6 +132,7 @@ export default class ColorCycler extends Plugin {
 			`HSL ${this.settings.color.h} ${this.settings.color.s} ${this.settings.color.l}`
 		);
 		this.setColor(this.settings.color);
+		this.saveSettings();
 	}
 
 	setColor(color: HSL) {
@@ -163,6 +174,21 @@ export default class ColorCycler extends Plugin {
 		this.updateColor(this.settings.color);
 	}
 
+	cyclePresetColor() {
+		const nextPresetIndex =
+			this.settings.preset.currentPresetIndex + 1 >=
+			this.settings.preset.colorList.length
+				? 0
+				: this.settings.preset.currentPresetIndex + 1;
+
+		this.settings.preset.currentPresetIndex = nextPresetIndex;
+
+		this.updateColor(
+			this.settings.preset.colorList[nextPresetIndex] ??
+				this.settings.color
+		);
+	}
+
 	cycleColor() {
 		switch (this.settings.behavior) {
 			case Behavior.INCREMENT:
@@ -172,6 +198,7 @@ export default class ColorCycler extends Plugin {
 				this.randomizeColor();
 				break;
 			case Behavior.PRESET:
+				this.cyclePresetColor();
 			default:
 				this.resetColor();
 		}
@@ -198,19 +225,15 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 		containerEl.createEl("a", {
 			cls: "setting-item-description",
 
-			text: "HSL",
+			text: "HSL documentation",
 			href: "https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/hsl",
 		});
 		containerEl.createEl("br");
-		containerEl.createEl("a", {
-			cls: "setting-item-description",
-
-			text: "Color wheel",
-			href: "https://developer.mozilla.org/en-US/docs/Glossary/Color_wheel",
-		});
-		containerEl.createEl("br");
 		containerEl.createEl("br");
 
+		/*
+		 * Increment settings
+		 */
 		const showIncrementSettings = () => {
 			containerEl.createEl("h2", { text: "Increment settings" });
 			new Setting(containerEl)
@@ -274,6 +297,9 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 				);
 		};
 
+		/*
+		 * Random settings
+		 */
 		const showRandomSettings = () => {
 			containerEl.createEl("h2", { text: "Random settings" });
 
@@ -404,6 +430,87 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 			}
 		};
 
+		/*
+		 * Preset settings
+		 */
+		const showPresetSettings = () => {
+			containerEl.createEl("h2", { text: "Preset settings" });
+
+			new Setting(containerEl)
+				.setName("Add preset")
+				.setDesc("Add preset colors to cycle through on each click")
+				.addButton((button) =>
+					button.setButtonText("Add").onClick(() => {
+						this.plugin.settings.preset.colorList.push({
+							h: 0,
+							s: 100,
+							l: 50,
+						});
+						this.plugin.saveSettings();
+						this.display();
+					})
+				);
+
+			this.plugin.settings.preset.colorList.forEach(
+				(colorPreset, index) => {
+					new Setting(containerEl)
+						.setName(`Preset ${index + 1}`)
+						.addColorPicker((color) => {
+							color.setValueHsl(
+								this.plugin.settings.preset.colorList[index]
+							);
+							color.onChange(async () => {
+								this.plugin.settings.preset.colorList[index] =
+									color.getValueHsl();
+								this.plugin.settings.preset.currentPresetIndex =
+									index;
+
+								this.plugin.updateColor(
+									this.plugin.settings.preset.colorList[
+										this.plugin.settings.preset
+											.currentPresetIndex
+									]
+								);
+								await this.plugin.saveSettings();
+							});
+						})
+						.addExtraButton((button) =>
+							button
+								.setIcon("trash")
+								.onClick(async () => {
+									this.plugin.settings.preset.colorList = [
+										...this.plugin.settings.preset.colorList.slice(
+											0,
+											index
+										),
+										...this.plugin.settings.preset.colorList.slice(
+											index + 1,
+											this.plugin.settings.preset
+												.colorList.length
+										),
+									];
+									this.plugin.settings.preset.currentPresetIndex = 0;
+									this.plugin.updateColor(
+										this.plugin.settings.preset.colorList[
+											this.plugin.settings.preset
+												.currentPresetIndex
+										]
+									);
+									await this.plugin.saveSettings();
+									this.display();
+								})
+								.setDisabled(
+									this.plugin.settings.preset.colorList
+										.length === 1 && index === 0
+								)
+						);
+				}
+			);
+		};
+
+		/*
+		 * Behavior settings
+		 */
 		new Setting(containerEl)
 			.setName("Behavior")
 			.setDesc(
@@ -435,6 +542,8 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 				showRandomSettings();
 				break;
 			case Behavior.PRESET:
+				showPresetSettings();
+				break;
 			default:
 				containerEl.createEl("p", { text: "No behavior selected" });
 		}
