@@ -33,6 +33,8 @@ interface ColorCyclerSettings {
 	[Behavior.INCREMENT]: IncrementBehavior;
 	[Behavior.RANDOM]: RandomBehavior;
 	[Behavior.PRESET]: PresetBehavior;
+	shouldShowIcon: boolean;
+	shouldShowStatusBar: boolean;
 }
 
 const DEFAULT_SETTINGS: ColorCyclerSettings = {
@@ -60,29 +62,31 @@ const DEFAULT_SETTINGS: ColorCyclerSettings = {
 		currentPresetIndex: 0,
 		colorList: [],
 	},
+	shouldShowIcon: true,
+	shouldShowStatusBar: false,
 };
 
 export default class ColorCycler extends Plugin {
 	settings: ColorCyclerSettings = DEFAULT_SETTINGS;
-	statusBarItemEl: HTMLElement;
 	ribbonIconEl: HTMLElement;
+	statusBarItemEl: HTMLElement;
 
 	async onload() {
 		await this.loadSettings();
-		this.setColor(this.settings.color);
-
-		this.statusBarItemEl = this.addStatusBarItem();
-		this.statusBarItemEl.setText(
-			`HSL ${this.settings.color.h} ${this.settings.color.s} ${this.settings.color.l}`
-		);
+		this.updateColor(this.settings.color);
 
 		this.ribbonIconEl = this.addRibbonIcon(
 			"palette",
 			"Cycle accent color",
-			(evt: MouseEvent) => {
+			() => {
 				this.cycleColor();
 			}
 		);
+		this.updateRibbonIconVisibility();
+
+		this.statusBarItemEl = this.addStatusBarItem();
+		this.updateStatusBar();
+		this.updateStatusBarVisibility();
 
 		this.addCommand({
 			id: "cycle-color",
@@ -125,7 +129,29 @@ export default class ColorCycler extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	updateColor(color: HSL) {
+	updateRibbonIconVisibility() {
+		if (this.settings.shouldShowIcon) {
+			this.ribbonIconEl.show();
+		} else {
+			this.ribbonIconEl.hide();
+		}
+	}
+
+	updateStatusBarVisibility() {
+		if (this.settings.shouldShowStatusBar) {
+			this.statusBarItemEl.show();
+		} else {
+			this.statusBarItemEl.hide();
+		}
+	}
+
+	updateStatusBar() {
+		this.statusBarItemEl.setText(
+			`HSL ${this.settings.color.h} ${this.settings.color.s} ${this.settings.color.l}`
+		);
+	}
+
+	setColor(color: HSL) {
 		let newHue = color.h;
 		let newSaturation = color.s;
 		let newLightness = color.l;
@@ -146,21 +172,19 @@ export default class ColorCycler extends Plugin {
 
 		this.settings.color = { h: newHue, s: newSaturation, l: newLightness };
 
-		this.statusBarItemEl.setText(
-			`HSL ${this.settings.color.h} ${this.settings.color.s} ${this.settings.color.l}`
-		);
-		this.setColor(this.settings.color);
+		this.updateColor(this.settings.color);
+		this.updateStatusBar();
 		this.saveSettings();
 	}
 
-	setColor(color: HSL) {
+	updateColor(color: HSL) {
 		document.body.style.setProperty("--accent-h", `${color.h}`);
 		document.body.style.setProperty("--accent-s", `${color.s}%`);
 		document.body.style.setProperty("--accent-l", `${color.l}%`);
 	}
 
 	resetColor() {
-		this.updateColor(this.settings.color);
+		this.setColor(this.settings.color);
 	}
 
 	incrementColor() {
@@ -169,7 +193,7 @@ export default class ColorCycler extends Plugin {
 		let newHue = currentHue + degrees;
 
 		this.settings.color.h = newHue;
-		this.updateColor(this.settings.color);
+		this.setColor(this.settings.color);
 	}
 
 	randomizeColor() {
@@ -189,7 +213,7 @@ export default class ColorCycler extends Plugin {
 			l: lightness,
 		};
 
-		this.updateColor(this.settings.color);
+		this.setColor(this.settings.color);
 	}
 
 	cyclePresetColor() {
@@ -201,7 +225,7 @@ export default class ColorCycler extends Plugin {
 
 		this.settings.preset.currentPresetIndex = nextPresetIndex;
 
-		this.updateColor(
+		this.setColor(
 			this.settings.preset.colorList[nextPresetIndex] ??
 				this.settings.color
 		);
@@ -238,7 +262,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 		containerEl.createEl("h2", { text: "Color Cycler" });
 		containerEl.createEl("p", {
 			cls: "setting-item-description",
-			text: "This plugin allows you to dynamically change the accent color by clicking the sidebar button. Color is set using HSL format.",
+			text: "This plugin allows you to dynamically change the accent color using the ribbon menu or command palette. Color is set using HSL format.",
 		});
 		containerEl.createEl("a", {
 			cls: "setting-item-description",
@@ -253,7 +277,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 		 * Increment settings
 		 */
 		const showIncrementSettings = () => {
-			this.plugin.updateColor({
+			this.plugin.setColor({
 				h: this.plugin.settings.increment.startAngle,
 				s: this.plugin.settings.increment.saturation,
 				l: this.plugin.settings.increment.lightness,
@@ -264,7 +288,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 			new Setting(containerEl)
 				.setName("Starting hue angle")
 				.setDesc(
-					"Hue angle on the color wheel to start incrementing from"
+					"Hue angle on the color wheel to start incrementing from."
 				)
 				.addText((text) =>
 					text
@@ -275,7 +299,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 						.onChange(async (value) => {
 							this.plugin.settings.increment.startAngle =
 								parseInt(value);
-							this.plugin.updateColor({
+							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
 								l: this.plugin.settings.increment.lightness,
@@ -287,7 +311,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 			new Setting(containerEl)
 				.setName("Hue degrees")
 				.setDesc(
-					"Hue angle degrees of the color wheel to advance on each click"
+					"Hue angle degrees of the color wheel to advance on each click."
 				)
 				.addText((text) =>
 					text
@@ -298,7 +322,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 						.onChange(async (value) => {
 							this.plugin.settings.increment.degrees =
 								parseInt(value);
-							this.plugin.updateColor({
+							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
 								l: this.plugin.settings.increment.lightness,
@@ -309,7 +333,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Saturation")
-				.setDesc("Saturation percentage (this value is static)")
+				.setDesc("Saturation percentage (this value is static).")
 				.addText((text) =>
 					text
 						.setPlaceholder("0-100")
@@ -319,7 +343,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 						.onChange(async (value) => {
 							this.plugin.settings.increment.saturation =
 								parseInt(value);
-							this.plugin.updateColor({
+							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
 								l: this.plugin.settings.increment.lightness,
@@ -330,7 +354,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Lightness")
-				.setDesc("Lightness percentage (this value is static)")
+				.setDesc("Lightness percentage (this value is static).")
 				.addText((text) =>
 					text
 						.setPlaceholder("0-100")
@@ -338,7 +362,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 						.onChange(async (value) => {
 							this.plugin.settings.increment.lightness =
 								parseInt(value);
-							this.plugin.updateColor({
+							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
 								l: this.plugin.settings.increment.lightness,
@@ -352,7 +376,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 		 * Random settings
 		 */
 		const showRandomSettings = () => {
-			this.plugin.updateColor({
+			this.plugin.setColor({
 				h: this.plugin.settings.random.hue,
 				s: this.plugin.settings.random.saturation,
 				l: this.plugin.settings.random.lightness,
@@ -362,7 +386,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Randomize hue")
-				.setDesc("Randomize hue angle on each click")
+				.setDesc("Randomize hue angle on each click.")
 				.addToggle((toggle) =>
 					toggle
 						.setValue(this.plugin.settings.random.isHueRandom)
@@ -377,7 +401,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 				new Setting(containerEl)
 					.setName("Hue angle")
 					.setDesc(
-						"Static hue angle of the color wheel to use if not randomized"
+						"Static hue angle of the color wheel to use if not randomized."
 					)
 					.addText((text) =>
 						text
@@ -388,7 +412,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 							.onChange(async (value) => {
 								this.plugin.settings.random.hue =
 									parseInt(value);
-								this.plugin.updateColor({
+								this.plugin.setColor({
 									h: this.plugin.settings.random.hue,
 									s: this.plugin.settings.random.saturation,
 									l: this.plugin.settings.random.lightness,
@@ -400,7 +424,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Randomize saturation")
-				.setDesc("Randomize saturation percentage on each click")
+				.setDesc("Randomize saturation percentage on each click.")
 				.addToggle((toggle) =>
 					toggle
 						.setValue(
@@ -418,7 +442,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 				new Setting(containerEl)
 					.setName("Saturation")
 					.setDesc(
-						"Static saturation percentage to use if not randomized"
+						"Static saturation percentage to use if not randomized."
 					)
 					.addText((text) =>
 						text
@@ -429,7 +453,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 							.onChange(async (value) => {
 								this.plugin.settings.random.saturation =
 									parseInt(value);
-								this.plugin.updateColor({
+								this.plugin.setColor({
 									h: this.plugin.settings.random.hue,
 									s: this.plugin.settings.random.saturation,
 									l: this.plugin.settings.random.lightness,
@@ -441,7 +465,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Randomize lightness")
-				.setDesc("Randomize lightness percentage on each click")
+				.setDesc("Randomize lightness percentage on each click.")
 				.addToggle((toggle) =>
 					toggle
 						.setValue(this.plugin.settings.random.isLightnessRandom)
@@ -457,7 +481,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 				new Setting(containerEl)
 					.setName("Lightness")
 					.setDesc(
-						"Static lightness percentage to use if not randomized"
+						"Static lightness percentage to use if not randomized."
 					)
 					.addText((text) =>
 						text
@@ -468,7 +492,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 							.onChange(async (value) => {
 								this.plugin.settings.random.lightness =
 									parseInt(value);
-								this.plugin.updateColor({
+								this.plugin.setColor({
 									h: this.plugin.settings.random.hue,
 									s: this.plugin.settings.random.saturation,
 									l: this.plugin.settings.random.lightness,
@@ -485,7 +509,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 		const showPresetSettings = () => {
 			containerEl.createEl("h2", { text: "Preset" });
 
-			this.plugin.updateColor(
+			this.plugin.setColor(
 				this.plugin.settings.preset.colorList[
 					this.plugin.settings.preset.currentPresetIndex
 				]
@@ -493,7 +517,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Add preset")
-				.setDesc("Add preset colors to cycle through on each click")
+				.setDesc("Add preset colors to cycle through on each click.")
 				.addButton((button) =>
 					button.setButtonText("Add").onClick(() => {
 						this.plugin.settings.preset.colorList.push({
@@ -520,7 +544,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 								this.plugin.settings.preset.currentPresetIndex =
 									index;
 
-								this.plugin.updateColor(
+								this.plugin.setColor(
 									this.plugin.settings.preset.colorList[
 										this.plugin.settings.preset
 											.currentPresetIndex
@@ -545,7 +569,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 										),
 									];
 									this.plugin.settings.preset.currentPresetIndex = 0;
-									this.plugin.updateColor(
+									this.plugin.setColor(
 										this.plugin.settings.preset.colorList[
 											this.plugin.settings.preset
 												.currentPresetIndex
@@ -564,12 +588,44 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 		};
 
 		/*
-		 * Behavior settings
+		 * Interface settings
 		 */
+		containerEl.createEl("h2", { text: "Interface" });
+
+		new Setting(containerEl)
+			.setName("Show ribbon icon")
+			.setDesc(
+				"Show or hide the ribbon icon. The Cycle accent color command will still work."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.shouldShowIcon)
+					.onChange(async (value) => {
+						this.plugin.settings.shouldShowIcon = value;
+						this.plugin.updateRibbonIconVisibility();
+						await this.plugin.saveSettings();
+						this.display();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Show status bar")
+			.setDesc("Show or hide HSL value in the status bar.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.shouldShowStatusBar)
+					.onChange(async (value) => {
+						this.plugin.settings.shouldShowStatusBar = value;
+						this.plugin.updateStatusBarVisibility();
+						await this.plugin.saveSettings();
+						this.display();
+					})
+			);
+
 		new Setting(containerEl)
 			.setName("Behavior")
 			.setDesc(
-				"How the accent color is cycled when clicking the sidebar button"
+				"How the accent color is cycled when clicking the sidebar button. Behavior-specific settings are shown below."
 			)
 			.addDropdown((dropdown) =>
 				dropdown
