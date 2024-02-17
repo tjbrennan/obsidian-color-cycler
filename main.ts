@@ -32,7 +32,7 @@ interface ColorCyclerSettings {
 	shouldShowIcon: boolean;
 	shouldShowStatusBar: boolean;
 	behavior: Behavior;
-	timer: number | null;
+	timerSeconds: number | null;
 	[Behavior.INCREMENT]: IncrementBehavior;
 	[Behavior.RANDOM]: RandomBehavior;
 	[Behavior.PRESET]: PresetBehavior;
@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS: ColorCyclerSettings = {
 	shouldShowIcon: true,
 	shouldShowStatusBar: false,
 	behavior: Behavior.INCREMENT,
-	timer: null,
+	timerSeconds: null,
 	increment: {
 		startAngle: 0,
 		degrees: 30,
@@ -72,6 +72,7 @@ export default class ColorCycler extends Plugin {
 	settings: ColorCyclerSettings = DEFAULT_SETTINGS;
 	ribbonIconEl: HTMLElement;
 	statusBarItemEl: HTMLElement;
+	timerObject: NodeJS.Timer;
 
 	async onload() {
 		await this.loadSettings();
@@ -101,7 +102,9 @@ export default class ColorCycler extends Plugin {
 		this.addSettingTab(new ColorCyclerSettingTab(this.app, this));
 	}
 
-	onunload() {}
+	onunload() {
+		clearInterval(this.timerObject);
+	}
 
 	async loadSettings() {
 		const savedData = await this.loadData();
@@ -151,6 +154,22 @@ export default class ColorCycler extends Plugin {
 		this.statusBarItemEl.setText(
 			`HSL ${this.settings.color.h} ${this.settings.color.s} ${this.settings.color.l}`
 		);
+	}
+
+	updateTimer() {
+		clearInterval(this.timerObject);
+		let timerSeconds = this.settings.timerSeconds;
+		if (timerSeconds) {
+			if (timerSeconds < 1) {
+				timerSeconds = 1;
+			} else if (timerSeconds > 86400) {
+				timerSeconds = 86400;
+			}
+			this.timerObject = setInterval(
+				() => this.cycleColor(),
+				timerSeconds * 1000
+			);
+		}
 	}
 
 	setColor(color: HSL) {
@@ -234,6 +253,7 @@ export default class ColorCycler extends Plugin {
 	}
 
 	cycleColor() {
+		console.log(this.settings);
 		switch (this.settings.behavior) {
 			case Behavior.INCREMENT:
 				this.incrementColor();
@@ -340,9 +360,13 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 			.addText((text) =>
 				text
 					.setPlaceholder("1-86400")
-					.setValue((this.plugin.settings.timer ?? "").toString())
+					.setValue(
+						(this.plugin.settings.timerSeconds ?? "").toString()
+					)
 					.onChange(async (value) => {
-						this.plugin.settings.timer = parseInt(value);
+						const newValue = parseInt(value) ?? null;
+						this.plugin.settings.timerSeconds = newValue;
+						this.plugin.updateTimer();
 						await this.plugin.saveSettings();
 					})
 			);
