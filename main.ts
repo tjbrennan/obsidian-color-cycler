@@ -38,6 +38,21 @@ interface ColorCyclerSettings {
 	[Behavior.PRESET]: PresetBehavior;
 }
 
+enum HueRange {
+	MIN = 0,
+	MAX = 360,
+}
+
+enum PercentRange {
+	MIN = 0,
+	MAX = 100,
+}
+
+enum TimerRange {
+	MIN = 1,
+	MAX = 86400,
+}
+
 const DEFAULT_SETTINGS: ColorCyclerSettings = {
 	color: {
 		h: 0,
@@ -67,6 +82,10 @@ const DEFAULT_SETTINGS: ColorCyclerSettings = {
 		colorList: [],
 	},
 };
+
+function bound(value: number, min: number, max: number) {
+	return Math.min(Math.max(value, min), max);
+}
 
 export default class ColorCycler extends Plugin {
 	settings: ColorCyclerSettings = DEFAULT_SETTINGS;
@@ -98,6 +117,8 @@ export default class ColorCycler extends Plugin {
 				this.cycleColor();
 			},
 		});
+
+		this.updateTimer();
 
 		this.addSettingTab(new ColorCyclerSettingTab(this.app, this));
 	}
@@ -160,11 +181,7 @@ export default class ColorCycler extends Plugin {
 		clearInterval(this.timerObject);
 		let timerSeconds = this.settings.timerSeconds;
 		if (timerSeconds) {
-			if (timerSeconds < 1) {
-				timerSeconds = 1;
-			} else if (timerSeconds > 86400) {
-				timerSeconds = 86400;
-			}
+			timerSeconds = bound(timerSeconds, TimerRange.MIN, TimerRange.MAX);
 			this.timerObject = setInterval(
 				() => this.cycleColor(),
 				timerSeconds * 1000
@@ -172,30 +189,15 @@ export default class ColorCycler extends Plugin {
 		}
 	}
 
-	setColor(color: HSL) {
-		let newHue = color.h;
-		let newSaturation = color.s;
-		let newLightness = color.l;
+	async setColor(color: HSL) {
+		const hue = color.h % 360;
+		const saturation = bound(color.s, PercentRange.MIN, PercentRange.MAX);
+		const lightness = bound(color.l, PercentRange.MIN, PercentRange.MAX);
 
-		newHue = newHue % 360;
-
-		if (newSaturation > 100) {
-			newSaturation = 100;
-		} else if (newSaturation < 0) {
-			newSaturation = 0;
-		}
-
-		if (newLightness > 100) {
-			newLightness = 100;
-		} else if (newLightness < 0) {
-			newLightness = 0;
-		}
-
-		this.settings.color = { h: newHue, s: newSaturation, l: newLightness };
-
+		this.settings.color = { h: hue, s: saturation, l: lightness };
 		this.updateColor(this.settings.color);
 		this.updateStatusBar();
-		this.saveSettings();
+		await this.saveSettings();
 	}
 
 	updateColor(color: HSL) {
@@ -211,10 +213,13 @@ export default class ColorCycler extends Plugin {
 	incrementColor() {
 		const currentHue = this.settings.color.h;
 		const degrees = this.settings.increment.degrees;
-		let newHue = currentHue + degrees;
+		const newHue = currentHue + degrees;
 
-		this.settings.color.h = newHue;
-		this.setColor(this.settings.color);
+		this.setColor({
+			h: newHue,
+			s: this.settings.color.s,
+			l: this.settings.color.l,
+		});
 	}
 
 	randomizeColor() {
@@ -228,13 +233,11 @@ export default class ColorCycler extends Plugin {
 			? Math.floor(Math.random() * 100)
 			: this.settings.random.lightness;
 
-		this.settings.color = {
+		this.setColor({
 			h: hue,
 			s: saturation,
 			l: lightness,
-		};
-
-		this.setColor(this.settings.color);
+		});
 	}
 
 	cyclePresetColor() {
@@ -253,7 +256,6 @@ export default class ColorCycler extends Plugin {
 	}
 
 	cycleColor() {
-		console.log(this.settings);
 		switch (this.settings.behavior) {
 			case Behavior.INCREMENT:
 				this.incrementColor();
@@ -311,7 +313,6 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 						this.plugin.settings.shouldShowIcon = value;
 						this.plugin.updateRibbonIconVisibility();
 						await this.plugin.saveSettings();
-						this.display();
 					})
 			);
 		new Setting(containerEl)
@@ -324,7 +325,6 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 						this.plugin.settings.shouldShowStatusBar = value;
 						this.plugin.updateStatusBarVisibility();
 						await this.plugin.saveSettings();
-						this.display();
 					})
 			);
 		containerEl.createEl("br");
@@ -348,7 +348,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.behavior)
 					.onChange(async (value) => {
 						this.plugin.settings.behavior = value as Behavior;
-						this.plugin.saveSettings();
+						await this.plugin.saveSettings();
 						this.display();
 					})
 			);
@@ -364,7 +364,12 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 						(this.plugin.settings.timerSeconds ?? "").toString()
 					)
 					.onChange(async (value) => {
-						const newValue = parseInt(value) ?? null;
+						const newValue =
+							bound(
+								parseInt(value),
+								TimerRange.MIN,
+								TimerRange.MAX
+							) || null;
 						this.plugin.settings.timerSeconds = newValue;
 						this.plugin.updateTimer();
 						await this.plugin.saveSettings();
@@ -390,13 +395,16 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 				)
 				.addText((text) =>
 					text
-						.setPlaceholder("1-359")
+						.setPlaceholder("0-360")
 						.setValue(
 							this.plugin.settings.increment.startAngle.toString()
 						)
 						.onChange(async (value) => {
-							this.plugin.settings.increment.startAngle =
-								parseInt(value);
+							this.plugin.settings.increment.startAngle = bound(
+								parseInt(value),
+								HueRange.MIN,
+								HueRange.MAX
+							);
 							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
@@ -406,19 +414,22 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 						})
 				);
 			new Setting(containerEl)
-				.setName("Hue degrees")
+				.setName("Hue increment degrees")
 				.setDesc(
 					"Hue angle degrees of the color wheel to advance on each click."
 				)
 				.addText((text) =>
 					text
-						.setPlaceholder("1-359")
+						.setPlaceholder("1-360")
 						.setValue(
 							this.plugin.settings.increment.degrees.toString()
 						)
 						.onChange(async (value) => {
-							this.plugin.settings.increment.degrees =
-								parseInt(value);
+							this.plugin.settings.increment.degrees = bound(
+								parseInt(value),
+								HueRange.MIN + 1,
+								HueRange.MAX
+							);
 							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
@@ -429,7 +440,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 				);
 			new Setting(containerEl)
 				.setName("Saturation")
-				.setDesc("Saturation percentage (this value is static).")
+				.setDesc("Static saturation percentage")
 				.addText((text) =>
 					text
 						.setPlaceholder("0-100")
@@ -437,8 +448,11 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 							this.plugin.settings.increment.saturation.toString()
 						)
 						.onChange(async (value) => {
-							this.plugin.settings.increment.saturation =
-								parseInt(value);
+							this.plugin.settings.increment.saturation = bound(
+								parseInt(value),
+								PercentRange.MIN,
+								PercentRange.MAX
+							);
 							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
@@ -449,14 +463,17 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 				);
 			new Setting(containerEl)
 				.setName("Lightness")
-				.setDesc("Lightness percentage (this value is static).")
+				.setDesc("Static lightness percentage.")
 				.addText((text) =>
 					text
 						.setPlaceholder("0-100")
 						.setValue(this.plugin.settings.color.l.toString())
 						.onChange(async (value) => {
-							this.plugin.settings.increment.lightness =
-								parseInt(value);
+							this.plugin.settings.increment.lightness = bound(
+								parseInt(value),
+								PercentRange.MIN,
+								PercentRange.MAX
+							);
 							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
@@ -503,8 +520,11 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 								this.plugin.settings.random.hue.toString()
 							)
 							.onChange(async (value) => {
-								this.plugin.settings.random.hue =
-									parseInt(value);
+								this.plugin.settings.random.hue = bound(
+									parseInt(value),
+									HueRange.MIN,
+									HueRange.MAX
+								);
 								this.plugin.setColor({
 									h: this.plugin.settings.random.hue,
 									s: this.plugin.settings.random.saturation,
@@ -542,8 +562,11 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 								this.plugin.settings.random.saturation.toString()
 							)
 							.onChange(async (value) => {
-								this.plugin.settings.random.saturation =
-									parseInt(value);
+								this.plugin.settings.random.saturation = bound(
+									parseInt(value),
+									PercentRange.MIN,
+									PercentRange.MAX
+								);
 								this.plugin.setColor({
 									h: this.plugin.settings.random.hue,
 									s: this.plugin.settings.random.saturation,
@@ -579,8 +602,11 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 								this.plugin.settings.random.lightness.toString()
 							)
 							.onChange(async (value) => {
-								this.plugin.settings.random.lightness =
-									parseInt(value);
+								this.plugin.settings.random.lightness = bound(
+									parseInt(value),
+									PercentRange.MIN,
+									PercentRange.MAX
+								);
 								this.plugin.setColor({
 									h: this.plugin.settings.random.hue,
 									s: this.plugin.settings.random.saturation,
