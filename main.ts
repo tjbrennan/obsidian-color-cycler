@@ -285,7 +285,6 @@ export default class ColorCycler extends Plugin {
 				this.cyclePresetColor();
 				break;
 			default:
-				break;
 		}
 	}
 }
@@ -702,6 +701,10 @@ class BehaviorModal extends Modal {
 					button
 						.setIcon("trash")
 						.setTooltip("Remove preset")
+						.setDisabled(
+							this.plugin.settings.preset.colorList.length ===
+								1 && index === 0
+						)
 						.onClick(async () => {
 							this.plugin.settings.preset.colorList = [
 								...this.plugin.settings.preset.colorList.slice(
@@ -723,10 +726,6 @@ class BehaviorModal extends Modal {
 							await this.plugin.saveSettings();
 							this.refresh();
 						})
-						.setDisabled(
-							this.plugin.settings.preset.colorList.length ===
-								1 && index === 0
-						)
 				)
 				.addColorPicker((color) => {
 					color.setValueHsl(
