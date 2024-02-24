@@ -1,4 +1,4 @@
-import { App, HSL, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, HSL, Modal, Plugin, PluginSettingTab, Setting } from "obsidian";
 
 enum Behavior {
 	INCREMENT = "increment",
@@ -141,7 +141,6 @@ export default class ColorCycler extends Plugin {
 
 	async loadSettings() {
 		const savedData = await this.loadData();
-		console.log(savedData);
 		this.settings = {
 			...DEFAULT_SETTINGS,
 			...savedData,
@@ -359,7 +358,15 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Cycle behavior")
 			.setDesc(
-				"How the accent color is cycled when clicking the sidebar button. Behavior-specific settings are shown below."
+				"How the accent color is cycled when clicking the sidebar button."
+			)
+			.addExtraButton((button) =>
+				button
+					.setIcon("gear")
+					.setTooltip("Advanced settings")
+					.onClick(() => {
+						new BehaviorModal(this.app, this.plugin).open();
+					})
 			)
 			.addDropdown((dropdown) =>
 				dropdown
@@ -414,326 +421,323 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+	}
+}
 
-		containerEl.createEl("br");
+class BehaviorModal extends Modal {
+	plugin: ColorCycler;
+	constructor(app: App, plugin: ColorCycler) {
+		super(app);
+		this.plugin = plugin;
+	}
 
-		/*
-		 * Increment settings
-		 */
-		const showIncrementSettings = () => {
-			this.plugin.setColor({
-				h: this.plugin.settings.increment.startAngle,
-				s: this.plugin.settings.increment.saturation,
-				l: this.plugin.settings.increment.lightness,
-			});
-
-			containerEl.createEl("h2", { text: "Increment" });
-			new Setting(containerEl)
-				.setName("Starting hue angle")
-				.setDesc(
-					"Hue angle on the color wheel to start incrementing from."
-				)
-				.addSlider((slider) =>
-					slider
-						.setLimits(HueRange.MIN, HueRange.MAX, 1)
-						.setDynamicTooltip()
-						.setValue(this.plugin.settings.increment.startAngle)
-						.onChange(async (value) => {
-							this.plugin.settings.increment.startAngle = value;
-							this.plugin.setColor({
-								h: this.plugin.settings.increment.startAngle,
-								s: this.plugin.settings.increment.saturation,
-								l: this.plugin.settings.increment.lightness,
-							});
-							await this.plugin.saveSettings();
-						})
-				);
-			new Setting(containerEl)
-				.setName("Hue increment degrees")
-				.setDesc(
-					"Hue angle degrees of the color wheel to advance on each click."
-				)
-				.addSlider((slider) =>
-					slider
-						.setLimits(HueRange.MIN + 1, HueRange.MAX, 1)
-						.setDynamicTooltip()
-						.setValue(this.plugin.settings.increment.degrees)
-						.onChange(async (value) => {
-							this.plugin.settings.increment.degrees = value;
-							this.plugin.setColor({
-								h: this.plugin.settings.increment.startAngle,
-								s: this.plugin.settings.increment.saturation,
-								l: this.plugin.settings.increment.lightness,
-							});
-							await this.plugin.saveSettings();
-						})
-				);
-			new Setting(containerEl)
-				.setName("Saturation")
-				.setDesc("Static saturation percentage")
-				.addSlider((slider) =>
-					slider
-						.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
-						.setDynamicTooltip()
-						.setValue(this.plugin.settings.increment.saturation)
-						.onChange(async (value) => {
-							this.plugin.settings.increment.saturation = value;
-							this.plugin.setColor({
-								h: this.plugin.settings.increment.startAngle,
-								s: this.plugin.settings.increment.saturation,
-								l: this.plugin.settings.increment.lightness,
-							});
-							await this.plugin.saveSettings();
-						})
-				);
-			new Setting(containerEl)
-				.setName("Lightness")
-				.setDesc("Static lightness percentage.")
-				.addSlider((slider) =>
-					slider
-						.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
-						.setDynamicTooltip()
-						.setValue(this.plugin.settings.increment.lightness)
-						.onChange(async (value) => {
-							this.plugin.settings.increment.lightness = value;
-							this.plugin.setColor({
-								h: this.plugin.settings.increment.startAngle,
-								s: this.plugin.settings.increment.saturation,
-								l: this.plugin.settings.increment.lightness,
-							});
-							await this.plugin.saveSettings();
-						})
-				);
-		};
-
-		/*
-		 * Random settings
-		 */
-		const showRandomSettings = () => {
-			this.plugin.randomizeColor();
-
-			containerEl.createEl("h2", { text: "Random" });
-			new Setting(containerEl)
-				.setName("Randomize hue")
-				.setDesc(
-					"Randomize hue angle on each click. Otherwise, use the slider to set a static hue angle."
-				)
-				.addToggle((toggle) =>
-					toggle
-						.setValue(this.plugin.settings.random.isHueRandom)
-						.onChange(async (value) => {
-							this.plugin.settings.random.isHueRandom = value;
-							await this.plugin.saveSettings();
-							this.display();
-						})
-				)
-				.addSlider((slider) =>
-					slider
-						.setLimits(HueRange.MIN, HueRange.MAX, 1)
-						.setDynamicTooltip()
-						.setDisabled(this.plugin.settings.random.isHueRandom)
-						.setValue(this.plugin.settings.random.hue)
-						.onChange(async (value) => {
-							this.plugin.settings.random.hue = value;
-							this.plugin.setColor({
-								h: this.plugin.settings.random.hue,
-								s: this.plugin.settings.random.saturation,
-								l: this.plugin.settings.random.lightness,
-							});
-							await this.plugin.saveSettings();
-						})
-				);
-
-			new Setting(containerEl)
-				.setName("Randomize saturation")
-				.setDesc(
-					"Randomize saturation percentage on each click. Otherwise, use the slider to set a static saturation percentage."
-				)
-				.addToggle((toggle) =>
-					toggle
-						.setValue(
-							this.plugin.settings.random.isSaturationRandom
-						)
-						.onChange(async (value) => {
-							this.plugin.settings.random.isSaturationRandom =
-								value;
-							await this.plugin.saveSettings();
-							this.display();
-						})
-				)
-				.addSlider((slider) =>
-					slider
-						.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
-						.setDynamicTooltip()
-						.setDisabled(
-							this.plugin.settings.random.isSaturationRandom
-						)
-						.setValue(this.plugin.settings.random.saturation)
-						.onChange(async (value) => {
-							this.plugin.settings.random.saturation = value;
-							this.plugin.setColor({
-								h: this.plugin.settings.random.hue,
-								s: this.plugin.settings.random.saturation,
-								l: this.plugin.settings.random.lightness,
-							});
-							await this.plugin.saveSettings();
-						})
-				);
-
-			new Setting(containerEl)
-				.setName("Randomize lightness")
-				.setDesc(
-					"Randomize lightness percentage on each click. Otherwise, use the slider to set a static lightness percentage."
-				)
-				.addToggle((toggle) =>
-					toggle
-						.setValue(this.plugin.settings.random.isLightnessRandom)
-						.onChange(async (value) => {
-							this.plugin.settings.random.isLightnessRandom =
-								value;
-							await this.plugin.saveSettings();
-							this.display();
-						})
-				)
-				.addSlider((slider) =>
-					slider
-						.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
-						.setDynamicTooltip()
-						.setDisabled(
-							this.plugin.settings.random.isLightnessRandom
-						)
-						.setValue(this.plugin.settings.random.lightness)
-						.onChange(async (value) => {
-							this.plugin.settings.random.lightness = value;
-							this.plugin.setColor({
-								h: this.plugin.settings.random.hue,
-								s: this.plugin.settings.random.saturation,
-								l: this.plugin.settings.random.lightness,
-							});
-							await this.plugin.saveSettings();
-						})
-				);
-		};
-
-		/*
-		 * Preset settings
-		 */
-		const showPresetSettings = () => {
-			if (
-				this.plugin.settings.preset.colorList[
-					this.plugin.settings.preset.currentPresetIndex
-				]
-			) {
-				this.plugin.setColor(
-					this.plugin.settings.preset.colorList[
-						this.plugin.settings.preset.currentPresetIndex
-					]
-				);
-			}
-
-			new Setting(containerEl)
-				.setHeading()
-				.setName("Preset")
-				.addExtraButton((button) =>
-					button
-						.setIcon("plus-circle")
-						.setTooltip("Add preset color")
-						.onClick(() => {
-							this.plugin.settings.preset.colorList.push({
-								h: 0,
-								s: 100,
-								l: 50,
-							});
-							this.plugin.saveSettings();
-							this.display();
-						})
-				);
-			this.plugin.settings.preset.colorList.forEach(
-				(_colorPreset, index) => {
-					new Setting(containerEl)
-						.setName(`Preset ${index + 1}`)
-						.addExtraButton((button) =>
-							button
-								.setIcon("palette")
-								.setTooltip("Set as current color")
-								.onClick(async () => {
-									this.plugin.settings.preset.currentPresetIndex =
-										index;
-									this.plugin.setColor(
-										this.plugin.settings.preset.colorList[
-											this.plugin.settings.preset
-												.currentPresetIndex
-										]
-									);
-									await this.plugin.saveSettings();
-								})
-						)
-						.addExtraButton((button) =>
-							button
-								.setIcon("trash")
-								.setTooltip("Remove preset")
-								.onClick(async () => {
-									this.plugin.settings.preset.colorList = [
-										...this.plugin.settings.preset.colorList.slice(
-											0,
-											index
-										),
-										...this.plugin.settings.preset.colorList.slice(
-											index + 1,
-											this.plugin.settings.preset
-												.colorList.length
-										),
-									];
-									this.plugin.settings.preset.currentPresetIndex = 0;
-									this.plugin.setColor(
-										this.plugin.settings.preset.colorList[
-											this.plugin.settings.preset
-												.currentPresetIndex
-										]
-									);
-									await this.plugin.saveSettings();
-									this.display();
-								})
-								.setDisabled(
-									this.plugin.settings.preset.colorList
-										.length === 1 && index === 0
-								)
-						)
-						.addColorPicker((color) => {
-							color.setValueHsl(
-								this.plugin.settings.preset.colorList[index]
-							);
-							color.onChange(async () => {
-								this.plugin.settings.preset.colorList[index] =
-									color.getValueHsl();
-								this.plugin.settings.preset.currentPresetIndex =
-									index;
-
-								this.plugin.setColor(
-									this.plugin.settings.preset.colorList[
-										this.plugin.settings.preset
-											.currentPresetIndex
-									]
-								);
-								await this.plugin.saveSettings();
-							});
-						});
-				}
-			);
-		};
+	onOpen() {
+		const { contentEl } = this;
 
 		switch (this.plugin.settings.behavior) {
 			case Behavior.INCREMENT:
-				showIncrementSettings();
+				this.showIncrementSettings(contentEl);
 				break;
 			case Behavior.RANDOM:
-				showRandomSettings();
+				this.showRandomSettings(contentEl);
 				break;
 			case Behavior.PRESET:
-				showPresetSettings();
+				this.showPresetSettings(contentEl);
 				break;
 			default:
-				containerEl.createEl("p", { text: "No behavior selected" });
+				contentEl.createEl("p", { text: "No behavior selected" });
 		}
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
+
+	refresh() {
+		this.onClose();
+		this.onOpen();
+	}
+
+	showIncrementSettings(contentEl: HTMLElement) {
+		this.plugin.setColor({
+			h: this.plugin.settings.increment.startAngle,
+			s: this.plugin.settings.increment.saturation,
+			l: this.plugin.settings.increment.lightness,
+		});
+
+		contentEl.createEl("h2", { text: "Increment settings" });
+		new Setting(contentEl)
+			.setName("Starting hue angle")
+			.setDesc("Hue angle on the color wheel to start incrementing from.")
+			.addSlider((slider) =>
+				slider
+					.setLimits(HueRange.MIN, HueRange.MAX, 1)
+					.setDynamicTooltip()
+					.setValue(this.plugin.settings.increment.startAngle)
+					.onChange(async (value) => {
+						this.plugin.settings.increment.startAngle = value;
+						this.plugin.setColor({
+							h: this.plugin.settings.increment.startAngle,
+							s: this.plugin.settings.increment.saturation,
+							l: this.plugin.settings.increment.lightness,
+						});
+						await this.plugin.saveSettings();
+					})
+			);
+		new Setting(contentEl)
+			.setName("Hue increment degrees")
+			.setDesc(
+				"Hue angle degrees of the color wheel to advance on each click."
+			)
+			.addSlider((slider) =>
+				slider
+					.setLimits(HueRange.MIN + 1, HueRange.MAX, 1)
+					.setDynamicTooltip()
+					.setValue(this.plugin.settings.increment.degrees)
+					.onChange(async (value) => {
+						this.plugin.settings.increment.degrees = value;
+						this.plugin.setColor({
+							h: this.plugin.settings.increment.startAngle,
+							s: this.plugin.settings.increment.saturation,
+							l: this.plugin.settings.increment.lightness,
+						});
+						await this.plugin.saveSettings();
+					})
+			);
+		new Setting(contentEl)
+			.setName("Saturation")
+			.setDesc("Static saturation percentage")
+			.addSlider((slider) =>
+				slider
+					.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
+					.setDynamicTooltip()
+					.setValue(this.plugin.settings.increment.saturation)
+					.onChange(async (value) => {
+						this.plugin.settings.increment.saturation = value;
+						this.plugin.setColor({
+							h: this.plugin.settings.increment.startAngle,
+							s: this.plugin.settings.increment.saturation,
+							l: this.plugin.settings.increment.lightness,
+						});
+						await this.plugin.saveSettings();
+					})
+			);
+		new Setting(contentEl)
+			.setName("Lightness")
+			.setDesc("Static lightness percentage.")
+			.addSlider((slider) =>
+				slider
+					.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
+					.setDynamicTooltip()
+					.setValue(this.plugin.settings.increment.lightness)
+					.onChange(async (value) => {
+						this.plugin.settings.increment.lightness = value;
+						this.plugin.setColor({
+							h: this.plugin.settings.increment.startAngle,
+							s: this.plugin.settings.increment.saturation,
+							l: this.plugin.settings.increment.lightness,
+						});
+						await this.plugin.saveSettings();
+					})
+			);
+	}
+
+	showRandomSettings(contentEl: HTMLElement) {
+		this.plugin.randomizeColor();
+
+		contentEl.createEl("h2", { text: "Random settings" });
+		new Setting(contentEl)
+			.setName("Randomize hue")
+			.setDesc(
+				"Randomize hue angle on each click. Otherwise, use the slider to set a static hue angle."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.random.isHueRandom)
+					.onChange(async (value) => {
+						this.plugin.settings.random.isHueRandom = value;
+						await this.plugin.saveSettings();
+						this.refresh();
+					})
+			)
+			.addSlider((slider) =>
+				slider
+					.setLimits(HueRange.MIN, HueRange.MAX, 1)
+					.setDynamicTooltip()
+					.setDisabled(this.plugin.settings.random.isHueRandom)
+					.setValue(this.plugin.settings.random.hue)
+					.onChange(async (value) => {
+						this.plugin.settings.random.hue = value;
+						this.plugin.setColor({
+							h: this.plugin.settings.random.hue,
+							s: this.plugin.settings.random.saturation,
+							l: this.plugin.settings.random.lightness,
+						});
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(contentEl)
+			.setName("Randomize saturation")
+			.setDesc(
+				"Randomize saturation percentage on each click. Otherwise, use the slider to set a static saturation percentage."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.random.isSaturationRandom)
+					.onChange(async (value) => {
+						this.plugin.settings.random.isSaturationRandom = value;
+						await this.plugin.saveSettings();
+						this.refresh();
+					})
+			)
+			.addSlider((slider) =>
+				slider
+					.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
+					.setDynamicTooltip()
+					.setDisabled(this.plugin.settings.random.isSaturationRandom)
+					.setValue(this.plugin.settings.random.saturation)
+					.onChange(async (value) => {
+						this.plugin.settings.random.saturation = value;
+						this.plugin.setColor({
+							h: this.plugin.settings.random.hue,
+							s: this.plugin.settings.random.saturation,
+							l: this.plugin.settings.random.lightness,
+						});
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(contentEl)
+			.setName("Randomize lightness")
+			.setDesc(
+				"Randomize lightness percentage on each click. Otherwise, use the slider to set a static lightness percentage."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.random.isLightnessRandom)
+					.onChange(async (value) => {
+						this.plugin.settings.random.isLightnessRandom = value;
+						await this.plugin.saveSettings();
+						this.refresh();
+					})
+			)
+			.addSlider((slider) =>
+				slider
+					.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
+					.setDynamicTooltip()
+					.setDisabled(this.plugin.settings.random.isLightnessRandom)
+					.setValue(this.plugin.settings.random.lightness)
+					.onChange(async (value) => {
+						this.plugin.settings.random.lightness = value;
+						this.plugin.setColor({
+							h: this.plugin.settings.random.hue,
+							s: this.plugin.settings.random.saturation,
+							l: this.plugin.settings.random.lightness,
+						});
+						await this.plugin.saveSettings();
+					})
+			);
+	}
+
+	showPresetSettings(contentEl: HTMLElement) {
+		if (
+			this.plugin.settings.preset.colorList[
+				this.plugin.settings.preset.currentPresetIndex
+			]
+		) {
+			this.plugin.setColor(
+				this.plugin.settings.preset.colorList[
+					this.plugin.settings.preset.currentPresetIndex
+				]
+			);
+		}
+
+		contentEl.createEl("h2", { text: "Preset settings" });
+		new Setting(contentEl)
+			.setHeading()
+			.setName("Presets")
+			.addExtraButton((button) =>
+				button
+					.setIcon("plus-circle")
+					.setTooltip("Add preset color")
+					.onClick(() => {
+						this.plugin.settings.preset.colorList.push({
+							h: 0,
+							s: 100,
+							l: 50,
+						});
+						this.plugin.saveSettings();
+						this.refresh();
+					})
+			);
+		this.plugin.settings.preset.colorList.forEach((_colorPreset, index) => {
+			new Setting(contentEl)
+				.setName(`Preset ${index + 1}`)
+				.addExtraButton((button) =>
+					button
+						.setIcon("palette")
+						.setTooltip("Set as current color")
+						.onClick(async () => {
+							this.plugin.settings.preset.currentPresetIndex =
+								index;
+							this.plugin.setColor(
+								this.plugin.settings.preset.colorList[
+									this.plugin.settings.preset
+										.currentPresetIndex
+								]
+							);
+							await this.plugin.saveSettings();
+						})
+				)
+				.addExtraButton((button) =>
+					button
+						.setIcon("trash")
+						.setTooltip("Remove preset")
+						.onClick(async () => {
+							this.plugin.settings.preset.colorList = [
+								...this.plugin.settings.preset.colorList.slice(
+									0,
+									index
+								),
+								...this.plugin.settings.preset.colorList.slice(
+									index + 1,
+									this.plugin.settings.preset.colorList.length
+								),
+							];
+							this.plugin.settings.preset.currentPresetIndex = 0;
+							this.plugin.setColor(
+								this.plugin.settings.preset.colorList[
+									this.plugin.settings.preset
+										.currentPresetIndex
+								]
+							);
+							await this.plugin.saveSettings();
+							this.refresh();
+						})
+						.setDisabled(
+							this.plugin.settings.preset.colorList.length ===
+								1 && index === 0
+						)
+				)
+				.addColorPicker((color) => {
+					color.setValueHsl(
+						this.plugin.settings.preset.colorList[index]
+					);
+					color.onChange(async () => {
+						this.plugin.settings.preset.colorList[index] =
+							color.getValueHsl();
+						this.plugin.settings.preset.currentPresetIndex = index;
+
+						this.plugin.setColor(
+							this.plugin.settings.preset.colorList[
+								this.plugin.settings.preset.currentPresetIndex
+							]
+						);
+						await this.plugin.saveSettings();
+					});
+				});
+		});
 	}
 }
