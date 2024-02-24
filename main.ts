@@ -149,6 +149,10 @@ export default class ColorCycler extends Plugin {
 				...DEFAULT_SETTINGS.color,
 				...savedData?.color,
 			},
+			timer: {
+				...DEFAULT_SETTINGS.timer,
+				...savedData?.timer,
+			},
 			increment: {
 				...DEFAULT_SETTINGS.increment,
 				...savedData?.increment,
@@ -389,6 +393,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 			.addText((text) =>
 				text
 					.setPlaceholder("1-86400")
+					.setDisabled(!this.plugin.settings.timer.isTimerEnabled)
 					.setValue(
 						(this.plugin.settings.timer.isTimerEnabled
 							? this.plugin.settings.timer.timerSeconds
@@ -408,7 +413,6 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 						this.plugin.updateTimer();
 						await this.plugin.saveSettings();
 					})
-					.setDisabled(!this.plugin.settings.timer.isTimerEnabled)
 			);
 
 		containerEl.createEl("br");
@@ -429,18 +433,13 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 				.setDesc(
 					"Hue angle on the color wheel to start incrementing from."
 				)
-				.addText((text) =>
-					text
-						.setPlaceholder("0-360")
-						.setValue(
-							this.plugin.settings.increment.startAngle.toString()
-						)
+				.addSlider((slider) =>
+					slider
+						.setLimits(HueRange.MIN, HueRange.MAX, 1)
+						.setDynamicTooltip()
+						.setValue(this.plugin.settings.increment.startAngle)
 						.onChange(async (value) => {
-							this.plugin.settings.increment.startAngle = bound(
-								parseInt(value),
-								HueRange.MIN,
-								HueRange.MAX
-							);
+							this.plugin.settings.increment.startAngle = value;
 							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
@@ -454,18 +453,13 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 				.setDesc(
 					"Hue angle degrees of the color wheel to advance on each click."
 				)
-				.addText((text) =>
-					text
-						.setPlaceholder("1-360")
-						.setValue(
-							this.plugin.settings.increment.degrees.toString()
-						)
+				.addSlider((slider) =>
+					slider
+						.setLimits(HueRange.MIN + 1, HueRange.MAX, 1)
+						.setDynamicTooltip()
+						.setValue(this.plugin.settings.increment.degrees)
 						.onChange(async (value) => {
-							this.plugin.settings.increment.degrees = bound(
-								parseInt(value),
-								HueRange.MIN + 1,
-								HueRange.MAX
-							);
+							this.plugin.settings.increment.degrees = value;
 							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
@@ -477,18 +471,13 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 			new Setting(containerEl)
 				.setName("Saturation")
 				.setDesc("Static saturation percentage")
-				.addText((text) =>
-					text
-						.setPlaceholder("0-100")
-						.setValue(
-							this.plugin.settings.increment.saturation.toString()
-						)
+				.addSlider((slider) =>
+					slider
+						.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
+						.setDynamicTooltip()
+						.setValue(this.plugin.settings.increment.saturation)
 						.onChange(async (value) => {
-							this.plugin.settings.increment.saturation = bound(
-								parseInt(value),
-								PercentRange.MIN,
-								PercentRange.MAX
-							);
+							this.plugin.settings.increment.saturation = value;
 							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
@@ -500,16 +489,13 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 			new Setting(containerEl)
 				.setName("Lightness")
 				.setDesc("Static lightness percentage.")
-				.addText((text) =>
-					text
-						.setPlaceholder("0-100")
-						.setValue(this.plugin.settings.color.l.toString())
+				.addSlider((slider) =>
+					slider
+						.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
+						.setDynamicTooltip()
+						.setValue(this.plugin.settings.increment.lightness)
 						.onChange(async (value) => {
-							this.plugin.settings.increment.lightness = bound(
-								parseInt(value),
-								PercentRange.MIN,
-								PercentRange.MAX
-							);
+							this.plugin.settings.increment.lightness = value;
 							this.plugin.setColor({
 								h: this.plugin.settings.increment.startAngle,
 								s: this.plugin.settings.increment.saturation,
@@ -530,43 +516,38 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 			new Setting(containerEl)
 				.setName("Randomize hue")
 				.setDesc(
-					"Randomize hue angle on each click. Otherwise, use static hue angle."
+					"Randomize hue angle on each click. Otherwise, use the slider to set a static hue angle."
 				)
 				.addToggle((toggle) =>
 					toggle
 						.setValue(this.plugin.settings.random.isHueRandom)
 						.onChange(async (value) => {
 							this.plugin.settings.random.isHueRandom = value;
-
 							await this.plugin.saveSettings();
 							this.display();
 						})
 				)
-				.addText((text) =>
-					text
-						.setPlaceholder("0-360")
-						.setValue(this.plugin.settings.random.hue.toString())
+				.addSlider((slider) =>
+					slider
+						.setLimits(HueRange.MIN, HueRange.MAX, 1)
+						.setDynamicTooltip()
+						.setDisabled(this.plugin.settings.random.isHueRandom)
+						.setValue(this.plugin.settings.random.hue)
 						.onChange(async (value) => {
-							this.plugin.settings.random.hue = bound(
-								parseInt(value),
-								HueRange.MIN,
-								HueRange.MAX
-							);
+							this.plugin.settings.random.hue = value;
 							this.plugin.setColor({
 								h: this.plugin.settings.random.hue,
 								s: this.plugin.settings.random.saturation,
 								l: this.plugin.settings.random.lightness,
 							});
 							await this.plugin.saveSettings();
-							this.display();
 						})
-						.setDisabled(this.plugin.settings.random.isHueRandom)
 				);
 
 			new Setting(containerEl)
 				.setName("Randomize saturation")
 				.setDesc(
-					"Randomize saturation percentage on each click. Otherwise, use static saturation percentage."
+					"Randomize saturation percentage on each click. Otherwise, use the slider to set a static saturation percentage."
 				)
 				.addToggle((toggle) =>
 					toggle
@@ -580,33 +561,29 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 							this.display();
 						})
 				)
-				.addText((text) =>
-					text
-						.setPlaceholder("0-100")
-						.setValue(
-							this.plugin.settings.random.saturation.toString()
+				.addSlider((slider) =>
+					slider
+						.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
+						.setDynamicTooltip()
+						.setDisabled(
+							this.plugin.settings.random.isSaturationRandom
 						)
+						.setValue(this.plugin.settings.random.saturation)
 						.onChange(async (value) => {
-							this.plugin.settings.random.saturation = bound(
-								parseInt(value),
-								PercentRange.MIN,
-								PercentRange.MAX
-							);
+							this.plugin.settings.random.saturation = value;
 							this.plugin.setColor({
 								h: this.plugin.settings.random.hue,
 								s: this.plugin.settings.random.saturation,
 								l: this.plugin.settings.random.lightness,
 							});
 							await this.plugin.saveSettings();
-							this.display();
 						})
-				)
-				.setDisabled(this.plugin.settings.random.isSaturationRandom);
+				);
 
 			new Setting(containerEl)
 				.setName("Randomize lightness")
 				.setDesc(
-					"Randomize lightness percentage on each click. Otherwise, use static lightness percentage."
+					"Randomize lightness percentage on each click. Otherwise, use the slider to set a static lightness percentage."
 				)
 				.addToggle((toggle) =>
 					toggle
@@ -618,28 +595,24 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 							this.display();
 						})
 				)
-				.addText((text) =>
-					text
-						.setPlaceholder("0-100")
-						.setValue(
-							this.plugin.settings.random.lightness.toString()
+				.addSlider((slider) =>
+					slider
+						.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
+						.setDynamicTooltip()
+						.setDisabled(
+							this.plugin.settings.random.isLightnessRandom
 						)
+						.setValue(this.plugin.settings.random.lightness)
 						.onChange(async (value) => {
-							this.plugin.settings.random.lightness = bound(
-								parseInt(value),
-								PercentRange.MIN,
-								PercentRange.MAX
-							);
+							this.plugin.settings.random.lightness = value;
 							this.plugin.setColor({
 								h: this.plugin.settings.random.hue,
 								s: this.plugin.settings.random.saturation,
 								l: this.plugin.settings.random.lightness,
 							});
 							await this.plugin.saveSettings();
-							this.display();
 						})
-				)
-				.setDisabled(this.plugin.settings.random.isLightnessRandom);
+				);
 		};
 
 		/*
