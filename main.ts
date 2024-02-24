@@ -32,7 +32,10 @@ interface ColorCyclerSettings {
 	shouldShowIcon: boolean;
 	shouldShowStatusBar: boolean;
 	behavior: Behavior;
-	timerSeconds: number | null;
+	timer: {
+		isTimerEnabled: boolean;
+		timerSeconds: number | "";
+	};
 	[Behavior.INCREMENT]: IncrementBehavior;
 	[Behavior.RANDOM]: RandomBehavior;
 	[Behavior.PRESET]: PresetBehavior;
@@ -62,7 +65,10 @@ const DEFAULT_SETTINGS: ColorCyclerSettings = {
 	shouldShowIcon: true,
 	shouldShowStatusBar: false,
 	behavior: Behavior.INCREMENT,
-	timerSeconds: null,
+	timer: {
+		isTimerEnabled: false,
+		timerSeconds: "",
+	},
 	increment: {
 		startAngle: 0,
 		degrees: 30,
@@ -79,12 +85,18 @@ const DEFAULT_SETTINGS: ColorCyclerSettings = {
 	},
 	preset: {
 		currentPresetIndex: 0,
-		colorList: [],
+		colorList: [
+			{
+				h: 0,
+				s: 100,
+				l: 50,
+			},
+		],
 	},
 };
 
 function bound(value: number, min: number, max: number) {
-	return Math.min(Math.max(value, min), max);
+	return !Number.isNaN(value) ? Math.min(Math.max(value, min), max) : min;
 }
 
 export default class ColorCycler extends Plugin {
@@ -129,24 +141,25 @@ export default class ColorCycler extends Plugin {
 
 	async loadSettings() {
 		const savedData = await this.loadData();
+		console.log(savedData);
 		this.settings = {
 			...DEFAULT_SETTINGS,
 			...savedData,
 			color: {
 				...DEFAULT_SETTINGS.color,
-				...savedData.color,
+				...savedData?.color,
 			},
 			increment: {
 				...DEFAULT_SETTINGS.increment,
-				...savedData.increment,
+				...savedData?.increment,
 			},
 			random: {
 				...DEFAULT_SETTINGS.random,
-				...savedData.random,
+				...savedData?.random,
 			},
 			preset: {
 				...DEFAULT_SETTINGS.preset,
-				...savedData.preset,
+				...savedData?.preset,
 			},
 		};
 	}
@@ -179,9 +192,15 @@ export default class ColorCycler extends Plugin {
 
 	updateTimer() {
 		clearInterval(this.timerObject);
-		let timerSeconds = this.settings.timerSeconds;
-		if (timerSeconds) {
-			timerSeconds = bound(timerSeconds, TimerRange.MIN, TimerRange.MAX);
+		if (
+			this.settings.timer.isTimerEnabled &&
+			this.settings.timer.timerSeconds
+		) {
+			const timerSeconds = bound(
+				this.settings.timer.timerSeconds,
+				TimerRange.MIN,
+				TimerRange.MAX
+			);
 			this.timerObject = setInterval(
 				() => this.cycleColor(),
 				timerSeconds * 1000
@@ -355,26 +374,43 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Timer")
 			.setDesc(
-				"Automatically cycle the color after a specified time in seconds. Leave blank to disable."
+				"Automatically cycle the color after a specified time in seconds."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.timer.isTimerEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.timer.isTimerEnabled = value;
+						this.plugin.updateTimer();
+						await this.plugin.saveSettings();
+						this.display();
+					})
 			)
 			.addText((text) =>
 				text
 					.setPlaceholder("1-86400")
 					.setValue(
-						(this.plugin.settings.timerSeconds ?? "").toString()
+						(this.plugin.settings.timer.isTimerEnabled
+							? this.plugin.settings.timer.timerSeconds
+							: ""
+						).toString()
 					)
 					.onChange(async (value) => {
 						const newValue =
-							bound(
-								parseInt(value),
-								TimerRange.MIN,
-								TimerRange.MAX
-							) || null;
-						this.plugin.settings.timerSeconds = newValue;
+							value !== ""
+								? bound(
+										parseInt(value),
+										TimerRange.MIN,
+										TimerRange.MAX
+								  )
+								: value;
+						this.plugin.settings.timer.timerSeconds = newValue;
 						this.plugin.updateTimer();
 						await this.plugin.saveSettings();
 					})
+					.setDisabled(!this.plugin.settings.timer.isTimerEnabled)
 			);
+
 		containerEl.createEl("br");
 
 		/*
@@ -488,55 +524,50 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 		 * Random settings
 		 */
 		const showRandomSettings = () => {
-			this.plugin.setColor({
-				h: this.plugin.settings.random.hue,
-				s: this.plugin.settings.random.saturation,
-				l: this.plugin.settings.random.lightness,
-			});
+			this.plugin.randomizeColor();
 
 			containerEl.createEl("h2", { text: "Random" });
 			new Setting(containerEl)
 				.setName("Randomize hue")
-				.setDesc("Randomize hue angle on each click.")
+				.setDesc(
+					"Randomize hue angle on each click. Otherwise, use static hue angle."
+				)
 				.addToggle((toggle) =>
 					toggle
 						.setValue(this.plugin.settings.random.isHueRandom)
 						.onChange(async (value) => {
 							this.plugin.settings.random.isHueRandom = value;
+
 							await this.plugin.saveSettings();
 							this.display();
 						})
+				)
+				.addText((text) =>
+					text
+						.setPlaceholder("0-360")
+						.setValue(this.plugin.settings.random.hue.toString())
+						.onChange(async (value) => {
+							this.plugin.settings.random.hue = bound(
+								parseInt(value),
+								HueRange.MIN,
+								HueRange.MAX
+							);
+							this.plugin.setColor({
+								h: this.plugin.settings.random.hue,
+								s: this.plugin.settings.random.saturation,
+								l: this.plugin.settings.random.lightness,
+							});
+							await this.plugin.saveSettings();
+							this.display();
+						})
+						.setDisabled(this.plugin.settings.random.isHueRandom)
 				);
-			if (!this.plugin.settings.random.isHueRandom) {
-				new Setting(containerEl)
-					.setName("Hue angle")
-					.setDesc(
-						"Static hue angle of the color wheel to use if not randomized."
-					)
-					.addText((text) =>
-						text
-							.setPlaceholder("0-360")
-							.setValue(
-								this.plugin.settings.random.hue.toString()
-							)
-							.onChange(async (value) => {
-								this.plugin.settings.random.hue = bound(
-									parseInt(value),
-									HueRange.MIN,
-									HueRange.MAX
-								);
-								this.plugin.setColor({
-									h: this.plugin.settings.random.hue,
-									s: this.plugin.settings.random.saturation,
-									l: this.plugin.settings.random.lightness,
-								});
-								await this.plugin.saveSettings();
-							})
-					);
-			}
+
 			new Setting(containerEl)
 				.setName("Randomize saturation")
-				.setDesc("Randomize saturation percentage on each click.")
+				.setDesc(
+					"Randomize saturation percentage on each click. Otherwise, use static saturation percentage."
+				)
 				.addToggle((toggle) =>
 					toggle
 						.setValue(
@@ -548,37 +579,35 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 							await this.plugin.saveSettings();
 							this.display();
 						})
-				);
-			if (!this.plugin.settings.random.isSaturationRandom) {
-				new Setting(containerEl)
-					.setName("Saturation")
-					.setDesc(
-						"Static saturation percentage to use if not randomized."
-					)
-					.addText((text) =>
-						text
-							.setPlaceholder("0-100")
-							.setValue(
-								this.plugin.settings.random.saturation.toString()
-							)
-							.onChange(async (value) => {
-								this.plugin.settings.random.saturation = bound(
-									parseInt(value),
-									PercentRange.MIN,
-									PercentRange.MAX
-								);
-								this.plugin.setColor({
-									h: this.plugin.settings.random.hue,
-									s: this.plugin.settings.random.saturation,
-									l: this.plugin.settings.random.lightness,
-								});
-								await this.plugin.saveSettings();
-							})
-					);
-			}
+				)
+				.addText((text) =>
+					text
+						.setPlaceholder("0-100")
+						.setValue(
+							this.plugin.settings.random.saturation.toString()
+						)
+						.onChange(async (value) => {
+							this.plugin.settings.random.saturation = bound(
+								parseInt(value),
+								PercentRange.MIN,
+								PercentRange.MAX
+							);
+							this.plugin.setColor({
+								h: this.plugin.settings.random.hue,
+								s: this.plugin.settings.random.saturation,
+								l: this.plugin.settings.random.lightness,
+							});
+							await this.plugin.saveSettings();
+							this.display();
+						})
+				)
+				.setDisabled(this.plugin.settings.random.isSaturationRandom);
+
 			new Setting(containerEl)
 				.setName("Randomize lightness")
-				.setDesc("Randomize lightness percentage on each click.")
+				.setDesc(
+					"Randomize lightness percentage on each click. Otherwise, use static lightness percentage."
+				)
 				.addToggle((toggle) =>
 					toggle
 						.setValue(this.plugin.settings.random.isLightnessRandom)
@@ -588,87 +617,88 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 							await this.plugin.saveSettings();
 							this.display();
 						})
-				);
-			if (!this.plugin.settings.random.isLightnessRandom) {
-				new Setting(containerEl)
-					.setName("Lightness")
-					.setDesc(
-						"Static lightness percentage to use if not randomized."
-					)
-					.addText((text) =>
-						text
-							.setPlaceholder("0-100")
-							.setValue(
-								this.plugin.settings.random.lightness.toString()
-							)
-							.onChange(async (value) => {
-								this.plugin.settings.random.lightness = bound(
-									parseInt(value),
-									PercentRange.MIN,
-									PercentRange.MAX
-								);
-								this.plugin.setColor({
-									h: this.plugin.settings.random.hue,
-									s: this.plugin.settings.random.saturation,
-									l: this.plugin.settings.random.lightness,
-								});
-								await this.plugin.saveSettings();
-							})
-					);
-			}
+				)
+				.addText((text) =>
+					text
+						.setPlaceholder("0-100")
+						.setValue(
+							this.plugin.settings.random.lightness.toString()
+						)
+						.onChange(async (value) => {
+							this.plugin.settings.random.lightness = bound(
+								parseInt(value),
+								PercentRange.MIN,
+								PercentRange.MAX
+							);
+							this.plugin.setColor({
+								h: this.plugin.settings.random.hue,
+								s: this.plugin.settings.random.saturation,
+								l: this.plugin.settings.random.lightness,
+							});
+							await this.plugin.saveSettings();
+							this.display();
+						})
+				)
+				.setDisabled(this.plugin.settings.random.isLightnessRandom);
 		};
 
 		/*
 		 * Preset settings
 		 */
 		const showPresetSettings = () => {
-			this.plugin.setColor(
+			if (
 				this.plugin.settings.preset.colorList[
 					this.plugin.settings.preset.currentPresetIndex
 				]
-			);
+			) {
+				this.plugin.setColor(
+					this.plugin.settings.preset.colorList[
+						this.plugin.settings.preset.currentPresetIndex
+					]
+				);
+			}
 
-			containerEl.createEl("h2", { text: "Preset" });
 			new Setting(containerEl)
-				.setName("Add preset")
-				.setDesc("Add preset colors to cycle through on each click.")
-				.addButton((button) =>
-					button.setButtonText("Add").onClick(() => {
-						this.plugin.settings.preset.colorList.push({
-							h: 0,
-							s: 100,
-							l: 50,
-						});
-						this.plugin.saveSettings();
-						this.display();
-					})
+				.setHeading()
+				.setName("Preset")
+				.addExtraButton((button) =>
+					button
+						.setIcon("plus-circle")
+						.setTooltip("Add preset color")
+						.onClick(() => {
+							this.plugin.settings.preset.colorList.push({
+								h: 0,
+								s: 100,
+								l: 50,
+							});
+							this.plugin.saveSettings();
+							this.display();
+						})
 				);
 			this.plugin.settings.preset.colorList.forEach(
 				(_colorPreset, index) => {
 					new Setting(containerEl)
 						.setName(`Preset ${index + 1}`)
-						.addColorPicker((color) => {
-							color.setValueHsl(
-								this.plugin.settings.preset.colorList[index]
-							);
-							color.onChange(async () => {
-								this.plugin.settings.preset.colorList[index] =
-									color.getValueHsl();
-								this.plugin.settings.preset.currentPresetIndex =
-									index;
-
-								this.plugin.setColor(
-									this.plugin.settings.preset.colorList[
-										this.plugin.settings.preset
-											.currentPresetIndex
-									]
-								);
-								await this.plugin.saveSettings();
-							});
-						})
+						.addExtraButton((button) =>
+							button
+								.setIcon("palette")
+								.setTooltip("Set as current color")
+								.onClick(async () => {
+									this.plugin.settings.preset.currentPresetIndex =
+										index;
+									this.plugin.setColor(
+										this.plugin.settings.preset.colorList[
+											this.plugin.settings.preset
+												.currentPresetIndex
+										]
+									);
+									await this.plugin.saveSettings();
+								})
+						)
 						.addExtraButton((button) =>
 							button
 								.setIcon("trash")
+								.setTooltip("Remove preset")
 								.onClick(async () => {
 									this.plugin.settings.preset.colorList = [
 										...this.plugin.settings.preset.colorList.slice(
@@ -695,7 +725,26 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 									this.plugin.settings.preset.colorList
 										.length === 1 && index === 0
 								)
-						);
+						)
+						.addColorPicker((color) => {
+							color.setValueHsl(
+								this.plugin.settings.preset.colorList[index]
+							);
+							color.onChange(async () => {
+								this.plugin.settings.preset.colorList[index] =
+									color.getValueHsl();
+								this.plugin.settings.preset.currentPresetIndex =
+									index;
+
+								this.plugin.setColor(
+									this.plugin.settings.preset.colorList[
+										this.plugin.settings.preset
+											.currentPresetIndex
+									]
+								);
+								await this.plugin.saveSettings();
+							});
+						});
 				}
 			);
 		};
