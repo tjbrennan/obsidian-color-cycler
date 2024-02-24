@@ -107,16 +107,9 @@ export default class ColorCycler extends Plugin {
 
   async onload() {
     await this.loadSettings();
+
     this.updateColor(this.settings.color);
-
-    this.ribbonIconEl = this.addRibbonIcon("palette", "Cycle accent color", () => {
-      this.cycleColor();
-    });
-    this.updateRibbonIconVisibility();
-
-    this.statusBarItemEl = this.addStatusBarItem();
-    this.updateStatusBar();
-    this.updateStatusBarVisibility();
+    this.updateTimer();
 
     this.addCommand({
       id: "cycle-color",
@@ -126,7 +119,14 @@ export default class ColorCycler extends Plugin {
       },
     });
 
-    this.updateTimer();
+    this.ribbonIconEl = this.addRibbonIcon("palette", "Cycle accent color", () => {
+      this.cycleColor();
+    });
+    this.updateRibbonIconVisibility();
+
+    this.statusBarItemEl = this.addStatusBarItem();
+    this.updateStatusBar();
+    this.updateStatusBarVisibility();
 
     this.addSettingTab(new ColorCyclerSettingTab(this.app, this));
   }
@@ -277,25 +277,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 
   display(): void {
     const { containerEl } = this;
-
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Color Cycler" });
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: `Dynamically change the accent color using the ribbon menu or command palette. 
-			Cycle behavior can be configured to increment, random, or preset colors.`,
-    });
-    containerEl.createEl("span", {
-      cls: "setting-item-description",
-      text: "Color is set using ",
-    });
-    containerEl.createEl("a", {
-      cls: "setting-item-description",
-      text: "HSL",
-      href: "https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/hsl",
-    });
-    containerEl.createEl("br");
-    containerEl.createEl("br");
 
     new Setting(containerEl)
       .setName("Behavior")
@@ -426,7 +408,7 @@ class BehaviorModal extends Modal {
   }
 
   showIncrementSettings(contentEl: HTMLElement) {
-    contentEl.createEl("h2", { text: "Increment settings" });
+    contentEl.createEl("h3", { text: "Increment" });
 
     new Setting(contentEl)
       .setName("Starting hue angle")
@@ -506,7 +488,7 @@ class BehaviorModal extends Modal {
   }
 
   showRandomSettings(contentEl: HTMLElement) {
-    contentEl.createEl("h2", { text: "Random settings" });
+    contentEl.createEl("h3", { text: "Random" });
 
     new Setting(contentEl)
       .setName("Randomize hue")
@@ -595,15 +577,15 @@ class BehaviorModal extends Modal {
   }
 
   showPresetSettings(contentEl: HTMLElement) {
-    contentEl.createEl("h2", { text: "Preset settings" });
+    contentEl.createEl("h3", { text: "Preset" });
 
     new Setting(contentEl)
       .setHeading()
-      .setName("Presets")
+      .setName("Preset colors")
       .addExtraButton((button) =>
         button
           .setIcon("plus-circle")
-          .setTooltip("Add preset color")
+          .setTooltip("Add color")
           .onClick(() => {
             this.plugin.settings.preset.colorList.push({
               h: 0,
@@ -617,7 +599,7 @@ class BehaviorModal extends Modal {
 
     this.plugin.settings.preset.colorList.forEach((_colorPreset, index) => {
       new Setting(contentEl)
-        .setName(`Preset ${index + 1}`)
+        .setName(`Color ${index + 1}`)
         .addExtraButton((button) =>
           button
             .setIcon("palette")
@@ -633,7 +615,7 @@ class BehaviorModal extends Modal {
         .addExtraButton((button) =>
           button
             .setIcon("trash")
-            .setTooltip("Remove preset")
+            .setTooltip("Remove color")
             .setDisabled(this.plugin.settings.preset.colorList.length === 1 && index === 0)
             .onClick(async () => {
               this.plugin.settings.preset.colorList = [
