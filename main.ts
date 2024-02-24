@@ -228,10 +228,6 @@ export default class ColorCycler extends Plugin {
 		document.body.style.setProperty("--accent-l", `${color.l}%`);
 	}
 
-	resetColor() {
-		this.setColor(this.settings.color);
-	}
-
 	incrementColor() {
 		const currentHue = this.settings.color.h;
 		const degrees = this.settings.increment.degrees;
@@ -287,8 +283,9 @@ export default class ColorCycler extends Plugin {
 				break;
 			case Behavior.PRESET:
 				this.cyclePresetColor();
+				break;
 			default:
-				this.resetColor();
+				break;
 		}
 	}
 }
@@ -308,55 +305,23 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 		containerEl.createEl("h2", { text: "Color Cycler" });
 		containerEl.createEl("p", {
 			cls: "setting-item-description",
-			text: "This plugin allows you to dynamically change the accent color using the ribbon menu or command palette. Color is set using HSL format.",
+			text: `Dynamically change the accent color using the ribbon menu or command palette. 
+			Cycle behavior can be configured to increment, random, or preset colors.`,
+		});
+		containerEl.createEl("span", {
+			cls: "setting-item-description",
+			text: "Color is set using ",
 		});
 		containerEl.createEl("a", {
 			cls: "setting-item-description",
-
-			text: "HSL documentation",
+			text: "HSL",
 			href: "https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/hsl",
 		});
 		containerEl.createEl("br");
 		containerEl.createEl("br");
 
-		/*
-		 * Interface settings
-		 */
-		containerEl.createEl("h2", { text: "Interface" });
 		new Setting(containerEl)
-			.setName("Show ribbon icon")
-			.setDesc(
-				"Show or hide the ribbon icon. The Cycle accent color command will still work."
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.shouldShowIcon)
-					.onChange(async (value) => {
-						this.plugin.settings.shouldShowIcon = value;
-						this.plugin.updateRibbonIconVisibility();
-						await this.plugin.saveSettings();
-					})
-			);
-		new Setting(containerEl)
-			.setName("Show status bar")
-			.setDesc("Show or hide HSL value in the status bar.")
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.shouldShowStatusBar)
-					.onChange(async (value) => {
-						this.plugin.settings.shouldShowStatusBar = value;
-						this.plugin.updateStatusBarVisibility();
-						await this.plugin.saveSettings();
-					})
-			);
-		containerEl.createEl("br");
-
-		/*
-		 * Behavior settings
-		 */
-		containerEl.createEl("h2", { text: "Behavior" });
-		new Setting(containerEl)
-			.setName("Cycle behavior")
+			.setName("Behavior")
 			.setDesc(
 				"How the accent color is cycled when clicking the sidebar button."
 			)
@@ -378,10 +343,41 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.behavior)
 					.onChange(async (value) => {
 						this.plugin.settings.behavior = value as Behavior;
+						switch (this.plugin.settings.behavior) {
+							case Behavior.INCREMENT:
+								this.plugin.setColor({
+									h: this.plugin.settings.increment
+										.startAngle,
+									s: this.plugin.settings.increment
+										.saturation,
+									l: this.plugin.settings.increment.lightness,
+								});
+								break;
+							case Behavior.RANDOM:
+								this.plugin.randomizeColor();
+								break;
+							case Behavior.PRESET:
+								if (
+									this.plugin.settings.preset.colorList[
+										this.plugin.settings.preset
+											.currentPresetIndex
+									]
+								) {
+									this.plugin.setColor(
+										this.plugin.settings.preset.colorList[
+											this.plugin.settings.preset
+												.currentPresetIndex
+										]
+									);
+								}
+								break;
+							default:
+						}
 						await this.plugin.saveSettings();
 						this.display();
 					})
 			);
+
 		new Setting(containerEl)
 			.setName("Timer")
 			.setDesc(
@@ -402,10 +398,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 					.setPlaceholder("1-86400")
 					.setDisabled(!this.plugin.settings.timer.isTimerEnabled)
 					.setValue(
-						(this.plugin.settings.timer.isTimerEnabled
-							? this.plugin.settings.timer.timerSeconds
-							: ""
-						).toString()
+						this.plugin.settings.timer.timerSeconds.toString()
 					)
 					.onChange(async (value) => {
 						const newValue =
@@ -421,6 +414,34 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+
+		new Setting(containerEl)
+			.setName("Show ribbon icon")
+			.setDesc(
+				"Show or hide the ribbon icon. The `Cycle accent color` command will still work."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.shouldShowIcon)
+					.onChange(async (value) => {
+						this.plugin.settings.shouldShowIcon = value;
+						this.plugin.updateRibbonIconVisibility();
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Show status bar")
+			.setDesc("Show or hide the HSL value in the status bar.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.shouldShowStatusBar)
+					.onChange(async (value) => {
+						this.plugin.settings.shouldShowStatusBar = value;
+						this.plugin.updateStatusBarVisibility();
+						await this.plugin.saveSettings();
+					})
+			);
 	}
 }
 
@@ -433,7 +454,6 @@ class BehaviorModal extends Modal {
 
 	onOpen() {
 		const { contentEl } = this;
-
 		switch (this.plugin.settings.behavior) {
 			case Behavior.INCREMENT:
 				this.showIncrementSettings(contentEl);
@@ -460,13 +480,8 @@ class BehaviorModal extends Modal {
 	}
 
 	showIncrementSettings(contentEl: HTMLElement) {
-		this.plugin.setColor({
-			h: this.plugin.settings.increment.startAngle,
-			s: this.plugin.settings.increment.saturation,
-			l: this.plugin.settings.increment.lightness,
-		});
-
 		contentEl.createEl("h2", { text: "Increment settings" });
+
 		new Setting(contentEl)
 			.setName("Starting hue angle")
 			.setDesc("Hue angle on the color wheel to start incrementing from.")
@@ -485,6 +500,7 @@ class BehaviorModal extends Modal {
 						await this.plugin.saveSettings();
 					})
 			);
+
 		new Setting(contentEl)
 			.setName("Hue increment degrees")
 			.setDesc(
@@ -505,9 +521,10 @@ class BehaviorModal extends Modal {
 						await this.plugin.saveSettings();
 					})
 			);
+
 		new Setting(contentEl)
 			.setName("Saturation")
-			.setDesc("Static saturation percentage")
+			.setDesc("Static saturation percentage.")
 			.addSlider((slider) =>
 				slider
 					.setLimits(PercentRange.MIN, PercentRange.MAX, 1)
@@ -523,6 +540,7 @@ class BehaviorModal extends Modal {
 						await this.plugin.saveSettings();
 					})
 			);
+
 		new Setting(contentEl)
 			.setName("Lightness")
 			.setDesc("Static lightness percentage.")
@@ -544,9 +562,8 @@ class BehaviorModal extends Modal {
 	}
 
 	showRandomSettings(contentEl: HTMLElement) {
-		this.plugin.randomizeColor();
-
 		contentEl.createEl("h2", { text: "Random settings" });
+
 		new Setting(contentEl)
 			.setName("Randomize hue")
 			.setDesc(
@@ -642,19 +659,8 @@ class BehaviorModal extends Modal {
 	}
 
 	showPresetSettings(contentEl: HTMLElement) {
-		if (
-			this.plugin.settings.preset.colorList[
-				this.plugin.settings.preset.currentPresetIndex
-			]
-		) {
-			this.plugin.setColor(
-				this.plugin.settings.preset.colorList[
-					this.plugin.settings.preset.currentPresetIndex
-				]
-			);
-		}
-
 		contentEl.createEl("h2", { text: "Preset settings" });
+
 		new Setting(contentEl)
 			.setHeading()
 			.setName("Presets")
@@ -672,6 +678,7 @@ class BehaviorModal extends Modal {
 						this.refresh();
 					})
 			);
+
 		this.plugin.settings.preset.colorList.forEach((_colorPreset, index) => {
 			new Setting(contentEl)
 				.setName(`Preset ${index + 1}`)
