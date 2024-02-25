@@ -1,7 +1,7 @@
 {
   "id": "obsidian-color-cycler",
   "name": "Color Cycler",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "0.15.0",
   "isDesktopOnly": false,
   "description": "Dynamically change the accent color of the Obsidian theme.",
