@@ -104,6 +104,7 @@ export default class ColorCycler extends Plugin {
   ribbonIconEl: HTMLElement;
   statusBarItemEl: HTMLElement;
   timerObject: NodeJS.Timer;
+  lastSave: number | undefined = undefined;
 
   async onload() {
     await this.loadSettings();
@@ -191,11 +192,11 @@ export default class ColorCycler extends Plugin {
     clearInterval(this.timerObject);
     if (this.settings.timer.isTimerEnabled && this.settings.timer.timerSeconds) {
       const timerSeconds = bound(this.settings.timer.timerSeconds, TimerRange.MIN, TimerRange.MAX);
-      this.timerObject = setInterval(() => this.cycleColor(), timerSeconds * 1000);
+      this.timerObject = setInterval(() => this.cycleColor(true), timerSeconds * 1000);
     }
   }
 
-  async setColor(color: HSL) {
+  async setColor(color: HSL, isTimer = false) {
     const hue = color.h % 360;
     const saturation = bound(color.s, PercentRange.MIN, PercentRange.MAX);
     const lightness = bound(color.l, PercentRange.MIN, PercentRange.MAX);
@@ -203,7 +204,22 @@ export default class ColorCycler extends Plugin {
     this.settings.color = { h: hue, s: saturation, l: lightness };
     this.updateColor(this.settings.color);
     this.updateStatusBar();
-    await this.saveSettings();
+
+    if (isTimer) {
+      if (this.lastSave) {
+        const now = Date.now();
+        if (now - this.lastSave > 60 * 1000) {
+          await this.saveSettings();
+          this.lastSave = now;
+        }
+      } else {
+        await this.saveSettings();
+        this.lastSave = Date.now();
+      }
+    } else {
+      this.updateTimer();
+      await this.saveSettings();
+    }
   }
 
   updateColor(color: HSL) {
@@ -212,19 +228,22 @@ export default class ColorCycler extends Plugin {
     document.body.style.setProperty("--accent-l", `${color.l}%`);
   }
 
-  incrementColor() {
+  incrementColor(isTimer = false) {
     const currentHue = this.settings.color.h;
     const degrees = this.settings.increment.degrees;
     const newHue = currentHue + degrees;
 
-    this.setColor({
-      h: newHue,
-      s: this.settings.color.s,
-      l: this.settings.color.l,
-    });
+    this.setColor(
+      {
+        h: newHue,
+        s: this.settings.color.s,
+        l: this.settings.color.l,
+      },
+      isTimer
+    );
   }
 
-  randomizeColor() {
+  randomizeColor(isTimer = false) {
     const hue = this.settings.random.isHueRandom ? Math.floor(Math.random() * 360) : this.settings.random.hue;
     const saturation = this.settings.random.isSaturationRandom
       ? Math.floor(Math.random() * 100)
@@ -233,14 +252,17 @@ export default class ColorCycler extends Plugin {
       ? Math.floor(Math.random() * 100)
       : this.settings.random.lightness;
 
-    this.setColor({
-      h: hue,
-      s: saturation,
-      l: lightness,
-    });
+    this.setColor(
+      {
+        h: hue,
+        s: saturation,
+        l: lightness,
+      },
+      isTimer
+    );
   }
 
-  cyclePresetColor() {
+  cyclePresetColor(isTimer = false) {
     const nextPresetIndex =
       this.settings.preset.currentPresetIndex + 1 >= this.settings.preset.colorList.length
         ? 0
@@ -248,19 +270,19 @@ export default class ColorCycler extends Plugin {
 
     this.settings.preset.currentPresetIndex = nextPresetIndex;
 
-    this.setColor(this.settings.preset.colorList[nextPresetIndex] ?? this.settings.color);
+    this.setColor(this.settings.preset.colorList[nextPresetIndex] ?? this.settings.color, isTimer);
   }
 
-  cycleColor() {
+  cycleColor(isTimer = false) {
     switch (this.settings.behavior) {
       case Behavior.INCREMENT:
-        this.incrementColor();
+        this.incrementColor(isTimer);
         break;
       case Behavior.RANDOM:
-        this.randomizeColor();
+        this.randomizeColor(isTimer);
         break;
       case Behavior.PRESET:
-        this.cyclePresetColor();
+        this.cyclePresetColor(isTimer);
         break;
       default:
     }
@@ -327,7 +349,9 @@ class ColorCyclerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Timer")
-      .setDesc("Automatically cycle the color after a specified time in seconds.")
+      .setDesc(
+        "Automatically cycle the color after a specified time in seconds. Manually cycling the color will reset the timer."
+      )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.timer.isTimerEnabled).onChange(async (value) => {
           this.plugin.settings.timer.isTimerEnabled = value;

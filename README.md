@@ -18,7 +18,7 @@ The plugin offers three different color cycling behaviors, each with their own a
 - Random: Randomly select a color
 - Preset: Cycle through a list of preset colors
 
-A timer can be set to automatically cycle the color at a specified interval in seconds. The timer resets when the plugin loads.
+A timer can be set to automatically cycle the color at a specified interval in seconds. The timer resets when the plugin loads or the color is cycled manually.
 
 The ribbon menu icon can be hidden if desired. The current HSL value of the accent color can also be displayed in the status bar.
 
