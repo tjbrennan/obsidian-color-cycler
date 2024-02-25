@@ -7,5 +7,8 @@
   "description": "Dynamically change the accent color of the Obsidian theme.",
   "author": "Taylor Brennan",
   "authorUrl": "https://github.com/tjbrennan",
-  "fundingUrl": "https://www.buymeacoffee.com/tjbrennan"
+  "fundingUrl": {
+    "Buy Me a Coffee": "https://www.buymeacoffee.com/tjbrennan",
+    "Ko-fi": "https://ko-fi.com/tjbrennan"
+  }
 }
