@@ -8,8 +8,9 @@ Color is defined using [HSL](https://developer.mozilla.org/en-US/docs/Web/CSS/co
 
 ## Usage
 
-- Using the command palette: `Color Cycler: Cycle accent color`
-- Using the ribbon menu: Click the `Palette` icon
+- Using the command palette: `Color cycler: Cycle accent color`
+- Using the ribbon menu: Click the `Palette` icon <img width="24" alt="Screenshot 2024-02-28 at 12 59 02" src="https://github.com/tjbrennan/obsidian-color-cycler/assets/2440702/1c9c27c4-de8a-4124-93e8-f769cb59707a">
+
 
 ## Configuration
 
