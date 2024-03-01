@@ -4,15 +4,16 @@ Do you prefer the default Obsidian theme but get bored with your accent color qu
 Use this plugin to dynamically change the accent color via the ribbon menu or command palette.
 Cycle behavior can be configured to increment, random, or preset colors.
 
-Color is defined using [HSL](https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/hsl)
+Color is defined using [HSL](https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/hsl).
 
 ## Usage
 
 - Using the command palette: `Color cycler: Cycle accent color`
 - Using the ribbon menu: Click the `Palette` icon <img width="25" alt="Screenshot 2024-02-28 at 13 01 42" src="https://github.com/tjbrennan/obsidian-color-cycler/assets/2440702/2d66679a-877e-4205-a234-33acc64e1fe0">
 
-
 ## Configuration
+
+### Behavior
 
 The plugin offers three different color cycling behaviors, each with their own advanced options:
 
@@ -20,9 +21,17 @@ The plugin offers three different color cycling behaviors, each with their own a
 - Random: Randomly select a color
 - Preset: Cycle through a list of preset colors
 
+### Timer
+
 A timer can be set to automatically cycle the color at a specified interval in seconds. The timer resets when the plugin loads or the color is cycled manually.
 
-The ribbon menu icon can be hidden if desired. The current HSL value of the accent color can also be displayed in the status bar.
+### Ribbon icon
+
+The ribbon menu icon can be hidden if desired. The plugin can still be accessed via the command palette.
+
+### Status bar
+
+The current HSL value of the accent color can be displayed in the status bar. This can be useful for debugging.
 
 ## Support
 

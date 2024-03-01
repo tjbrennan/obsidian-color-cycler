@@ -244,12 +244,12 @@ export default class ColorCycler extends Plugin {
   }
 
   randomizeColor(isTimer = false) {
-    const hue = this.settings.random.isHueRandom ? Math.floor(Math.random() * 360) : this.settings.random.hue;
+    const hue = this.settings.random.isHueRandom ? Math.floor(Math.random() * HueRange.MAX) : this.settings.random.hue;
     const saturation = this.settings.random.isSaturationRandom
-      ? Math.floor(Math.random() * 100)
+      ? Math.floor(Math.random() * PercentRange.MAX)
       : this.settings.random.saturation;
     const lightness = this.settings.random.isLightnessRandom
-      ? Math.floor(Math.random() * 100)
+      ? Math.floor(Math.random() * PercentRange.MAX)
       : this.settings.random.lightness;
 
     this.setColor(
@@ -432,7 +432,7 @@ class BehaviorModal extends Modal {
   }
 
   showIncrementSettings(contentEl: HTMLElement) {
-    contentEl.createEl("h3", { text: "Increment" });
+    new Setting(contentEl).setName("Increment").setHeading();
 
     new Setting(contentEl)
       .setName("Starting hue angle")
@@ -512,7 +512,7 @@ class BehaviorModal extends Modal {
   }
 
   showRandomSettings(contentEl: HTMLElement) {
-    contentEl.createEl("h3", { text: "Random" });
+    new Setting(contentEl).setName("Random").setHeading();
 
     new Setting(contentEl)
       .setName("Randomize hue")
@@ -601,11 +601,11 @@ class BehaviorModal extends Modal {
   }
 
   showPresetSettings(contentEl: HTMLElement) {
-    contentEl.createEl("h3", { text: "Preset" });
+    new Setting(contentEl).setName("Preset").setHeading();
 
     new Setting(contentEl)
       .setHeading()
-      .setName("Preset colors")
+      .setName("Colors")
       .addExtraButton((button) =>
         button
           .setIcon("plus-circle")
