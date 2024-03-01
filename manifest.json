@@ -1,10 +1,10 @@
 {
   "id": "color-cycler",
   "name": "Color cycler",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "minAppVersion": "0.15.0",
   "isDesktopOnly": false,
-  "description": "Dynamically change the accent color of the Obsidian theme.",
+  "description": "Dynamically change the accent color of the theme.",
   "author": "Taylor Brennan",
   "authorUrl": "https://github.com/tjbrennan",
   "fundingUrl": {

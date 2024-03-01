@@ -1,6 +1,6 @@
 {
   "name": "obsidian-color-cycler",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Dynamically change the accent color of the Obsidian theme.",
   "main": "main.js",
   "scripts": {
