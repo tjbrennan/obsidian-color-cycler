@@ -25,10 +25,6 @@ The plugin offers three different color cycling behaviors, each with their own a
 
 A timer can be set to automatically cycle the color at a specified interval in seconds. The timer resets when the plugin loads or the color is cycled manually.
 
-### Ribbon icon
-
-The ribbon menu icon can be hidden if desired. The plugin can still be accessed via the command palette.
-
 ### Status bar
 
 The current HSL value of the accent color can be displayed in the status bar. This can be useful for debugging.

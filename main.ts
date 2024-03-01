@@ -29,7 +29,6 @@ interface PresetBehavior {
 
 interface ColorCyclerSettings {
   color: HSL;
-  shouldShowIcon: boolean;
   shouldShowStatusBar: boolean;
   behavior: Behavior;
   timer: {
@@ -62,7 +61,6 @@ const DEFAULT_SETTINGS: ColorCyclerSettings = {
     s: 100,
     l: 50,
   },
-  shouldShowIcon: true,
   shouldShowStatusBar: false,
   behavior: Behavior.INCREMENT,
   timer: {
@@ -123,7 +121,6 @@ export default class ColorCycler extends Plugin {
     this.ribbonIconEl = this.addRibbonIcon("palette", "Cycle accent color", () => {
       this.cycleColor();
     });
-    this.updateRibbonIconVisibility();
 
     this.statusBarItemEl = this.addStatusBarItem();
     this.updateStatusBar();
@@ -166,14 +163,6 @@ export default class ColorCycler extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
-  }
-
-  updateRibbonIconVisibility() {
-    if (this.settings.shouldShowIcon) {
-      this.ribbonIconEl.show();
-    } else {
-      this.ribbonIconEl.hide();
-    }
   }
 
   updateStatusBarVisibility() {
@@ -371,17 +360,6 @@ class ColorCyclerSettingTab extends PluginSettingTab {
             this.plugin.updateTimer();
             await this.plugin.saveSettings();
           })
-      );
-
-    new Setting(containerEl)
-      .setName("Show ribbon icon")
-      .setDesc("Show or hide the ribbon icon. The `Cycle accent color` command will still work.")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.shouldShowIcon).onChange(async (value) => {
-          this.plugin.settings.shouldShowIcon = value;
-          this.plugin.updateRibbonIconVisibility();
-          await this.plugin.saveSettings();
-        })
       );
 
     new Setting(containerEl)
