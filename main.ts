@@ -103,6 +103,7 @@ export default class ColorCycler extends Plugin {
   statusBarItemEl: HTMLElement;
   timerId: number;
   lastSave: number | undefined = undefined;
+  theme: "dark" | "light" = "dark";
 
   async onload() {
     await this.loadSettings();
@@ -127,10 +128,26 @@ export default class ColorCycler extends Plugin {
     this.updateStatusBarVisibility();
 
     this.addSettingTab(new ColorCyclerSettingTab(this.app, this));
-  }
 
-  onunload() {
-    clearInterval(this.timerId);
+    const detectTheme = () => {
+      //@ts-ignore
+      const theme = this.app.getTheme();
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+      if (theme === "obsidian") {
+        this.theme = "dark";
+      } else if (theme === "moonstone") {
+        this.theme = "light";
+      } else if (theme === "system" && media.matches) {
+        this.theme = "dark";
+      } else if (theme === "system" && !media.matches) {
+        this.theme = "light";
+      }
+      // FIXME
+      console.log(this.theme);
+    };
+    this.registerEvent(this.app.workspace.on("css-change", detectTheme));
+    detectTheme();
   }
 
   async loadSettings() {
