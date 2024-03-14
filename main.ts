@@ -101,7 +101,7 @@ export default class ColorCycler extends Plugin {
   settings: ColorCyclerSettings = DEFAULT_SETTINGS;
   ribbonIconEl: HTMLElement;
   statusBarItemEl: HTMLElement;
-  timerObject: NodeJS.Timer;
+  timerId: number;
   lastSave: number | undefined = undefined;
 
   async onload() {
@@ -130,7 +130,7 @@ export default class ColorCycler extends Plugin {
   }
 
   onunload() {
-    clearInterval(this.timerObject);
+    clearInterval(this.timerId);
   }
 
   async loadSettings() {
@@ -178,10 +178,10 @@ export default class ColorCycler extends Plugin {
   }
 
   updateTimer() {
-    clearInterval(this.timerObject);
+    clearInterval(this.timerId);
     if (this.settings.timer.isTimerEnabled && this.settings.timer.timerSeconds) {
       const timerSeconds = bound(this.settings.timer.timerSeconds, TimerRange.MIN, TimerRange.MAX);
-      this.timerObject = setInterval(() => this.cycleColor(true), timerSeconds * 1000);
+      this.timerId = this.registerInterval(window.setInterval(() => this.cycleColor(true), timerSeconds * 1000));
     }
   }
 
