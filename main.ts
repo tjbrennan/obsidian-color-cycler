@@ -27,9 +27,13 @@ interface PresetBehavior {
   colorList: HSL[];
 }
 
-interface ColorCyclerSettings {
-  color: HSL;
-  shouldShowStatusBar: boolean;
+enum ThemeMode {
+  BASE = "baseThemeSettings",
+  DARK = "darkThemeSettings",
+  LIGHT = "lightThemeSettings",
+}
+
+interface ThemeSettings {
   behavior: Behavior;
   timer: {
     isTimerEnabled: boolean;
@@ -38,6 +42,20 @@ interface ColorCyclerSettings {
   [Behavior.INCREMENT]: IncrementBehavior;
   [Behavior.RANDOM]: RandomBehavior;
   [Behavior.PRESET]: PresetBehavior;
+}
+
+interface ColorCyclerSettings {
+  color: HSL;
+  shouldShowStatusBar: boolean;
+  shouldShowSeparateThemeSettings: boolean;
+  [ThemeMode.BASE]: ThemeSettings;
+  [ThemeMode.DARK]: ThemeSettings;
+  [ThemeMode.LIGHT]: ThemeSettings;
+  behavior: never;
+  timer: never;
+  [Behavior.INCREMENT]: never;
+  [Behavior.RANDOM]: never;
+  [Behavior.PRESET]: never;
 }
 
 enum HueRange {
@@ -55,13 +73,7 @@ enum TimerRange {
   MAX = 86400,
 }
 
-const DEFAULT_SETTINGS: ColorCyclerSettings = {
-  color: {
-    h: 0,
-    s: 100,
-    l: 50,
-  },
-  shouldShowStatusBar: false,
+const DEFAULT_THEME_SETTINGS: ThemeSettings = {
   behavior: Behavior.INCREMENT,
   timer: {
     isTimerEnabled: false,
@@ -93,6 +105,19 @@ const DEFAULT_SETTINGS: ColorCyclerSettings = {
   },
 };
 
+const DEFAULT_SETTINGS: ColorCyclerSettings = {
+  color: {
+    h: 0,
+    s: 100,
+    l: 50,
+  },
+  shouldShowStatusBar: false,
+  shouldShowSeparateThemeSettings: false,
+  baseThemeSettings: DEFAULT_THEME_SETTINGS,
+  darkThemeSettings: DEFAULT_THEME_SETTINGS,
+  lightThemeSettings: DEFAULT_THEME_SETTINGS,
+};
+
 function bound(value: number, min: number, max: number) {
   return !Number.isNaN(value) ? Math.min(Math.max(value, min), max) : min;
 }
@@ -103,7 +128,7 @@ export default class ColorCycler extends Plugin {
   statusBarItemEl: HTMLElement;
   timerId: number;
   lastSave: number | undefined = undefined;
-  theme: "dark" | "light" = "dark";
+  themeMode: "dark" | "light" = "dark";
 
   async onload() {
     await this.loadSettings();
@@ -133,21 +158,85 @@ export default class ColorCycler extends Plugin {
       //@ts-ignore
       const theme = this.app.getTheme();
       const media = window.matchMedia("(prefers-color-scheme: dark)");
+      let newThemeMode: "dark" | "light" = "dark";
 
       if (theme === "obsidian") {
-        this.theme = "dark";
+        newThemeMode = "dark";
       } else if (theme === "moonstone") {
-        this.theme = "light";
+        newThemeMode = "light";
       } else if (theme === "system" && media.matches) {
-        this.theme = "dark";
+        newThemeMode = "dark";
       } else if (theme === "system" && !media.matches) {
-        this.theme = "light";
+        newThemeMode = "light";
       }
       // FIXME
-      console.log(this.theme);
+      console.log(newThemeMode);
+      if (newThemeMode !== this.themeMode) {
+        // TODO: do something
+      }
+      this.themeMode = newThemeMode;
     };
     this.registerEvent(this.app.workspace.on("css-change", detectTheme));
     detectTheme();
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getThemeSettings(savedData: any, mode: ThemeMode) {
+    return {
+      behavior: savedData?.[mode]?.behavior ?? DEFAULT_SETTINGS[mode].behavior,
+      timer: {
+        ...DEFAULT_SETTINGS[mode].timer,
+        ...savedData?.[mode]?.timer,
+      },
+      increment: {
+        ...DEFAULT_SETTINGS[mode].increment,
+        ...savedData?.[mode]?.increment,
+      },
+      random: {
+        ...DEFAULT_SETTINGS[mode].random,
+        ...savedData?.[mode]?.random,
+      },
+      preset: {
+        ...DEFAULT_SETTINGS[mode].preset,
+        ...savedData?.[mode]?.preset,
+      },
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async migrateBaseThemeSettings(savedData: any) {
+    if (
+      !savedData.baseThemeSettings &&
+      (savedData.behavior || savedData.timer || savedData.increment || savedData.random || savedData.preset)
+    ) {
+      this.settings.baseThemeSettings = {
+        behavior: savedData?.behavior ?? DEFAULT_SETTINGS.baseThemeSettings.behavior,
+        timer: {
+          ...DEFAULT_SETTINGS.baseThemeSettings.timer,
+          ...savedData?.timer,
+        },
+        increment: {
+          ...DEFAULT_SETTINGS.baseThemeSettings.increment,
+          ...savedData?.increment,
+        },
+        random: {
+          ...DEFAULT_SETTINGS.baseThemeSettings.random,
+          ...savedData?.random,
+        },
+        preset: {
+          ...DEFAULT_SETTINGS.baseThemeSettings.preset,
+          ...savedData?.preset,
+        },
+      };
+
+      delete this.settings.behavior;
+      delete this.settings.timer;
+      delete this.settings.increment;
+      delete this.settings.random;
+      delete this.settings.preset;
+
+      await this.saveSettings();
+    }
   }
 
   async loadSettings() {
@@ -159,22 +248,9 @@ export default class ColorCycler extends Plugin {
         ...DEFAULT_SETTINGS.color,
         ...savedData?.color,
       },
-      timer: {
-        ...DEFAULT_SETTINGS.timer,
-        ...savedData?.timer,
-      },
-      increment: {
-        ...DEFAULT_SETTINGS.increment,
-        ...savedData?.increment,
-      },
-      random: {
-        ...DEFAULT_SETTINGS.random,
-        ...savedData?.random,
-      },
-      preset: {
-        ...DEFAULT_SETTINGS.preset,
-        ...savedData?.preset,
-      },
+      baseThemeSettings: this.getThemeSettings(savedData, ThemeMode.BASE),
+      darkThemeSettings: this.getThemeSettings(savedData, ThemeMode.DARK),
+      lightThemeSettings: this.getThemeSettings(savedData, ThemeMode.LIGHT),
     };
   }
 
@@ -303,10 +379,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
-  display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
-
+  showColorSettings(containerEl: HTMLElement, theme?: "dark" | "light") {
     new Setting(containerEl)
       .setName("Behavior")
       .setDesc("How the accent color is cycled when clicking the sidebar button.")
@@ -378,9 +451,14 @@ class ColorCyclerSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+  }
+
+  display(): void {
+    const { containerEl } = this;
+    containerEl.empty();
 
     new Setting(containerEl)
-      .setName("Show status bar")
+      .setName("Show in status bar")
       .setDesc("Show or hide the HSL value in the status bar.")
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.shouldShowStatusBar).onChange(async (value) => {
@@ -389,6 +467,43 @@ class ColorCyclerSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+    new Setting(containerEl)
+      .setName("Separate settings for dark and light themes")
+      .setDesc("Behavior and timer can be set individually for the dark theme and light theme.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.shouldShowSeparateThemeSettings).onChange(async (value) => {
+          this.plugin.settings.shouldShowSeparateThemeSettings = value;
+          await this.plugin.saveSettings();
+          this.display();
+        })
+      );
+
+    if (this.plugin.settings.shouldShowSeparateThemeSettings) {
+      new Setting(containerEl)
+        .setName("Dark theme colors")
+        .setHeading()
+        .addExtraButton((button) =>
+          button
+            .setIcon("sun")
+            .setTooltip("Match light theme colors")
+            .onClick(() => {
+              new BehaviorModal(this.app, this.plugin).open();
+            })
+        );
+      new Setting(containerEl)
+        .setName("Light theme colors")
+        .setHeading()
+        .addExtraButton((button) =>
+          button
+            .setIcon("moon")
+            .setTooltip("Match dark theme colors")
+            .onClick(() => {
+              new BehaviorModal(this.app, this.plugin).open();
+            })
+        );
+    } else {
+      new Setting(containerEl).setName("Colors").setHeading();
+    }
   }
 }
 
