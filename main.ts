@@ -27,6 +27,11 @@ interface PresetBehavior {
   colorList: HSL[];
 }
 
+interface TimerSettings {
+  isTimerEnabled: boolean;
+  timerSeconds: number | "";
+}
+
 enum ThemeMode {
   BASE = "baseThemeSettings",
   DARK = "darkThemeSettings",
@@ -35,10 +40,7 @@ enum ThemeMode {
 
 interface ThemeSettings {
   behavior: Behavior;
-  timer: {
-    isTimerEnabled: boolean;
-    timerSeconds: number | "";
-  };
+  timer: TimerSettings;
   [Behavior.INCREMENT]: IncrementBehavior;
   [Behavior.RANDOM]: RandomBehavior;
   [Behavior.PRESET]: PresetBehavior;
@@ -51,11 +53,11 @@ interface ColorCyclerSettings {
   [ThemeMode.BASE]: ThemeSettings;
   [ThemeMode.DARK]: ThemeSettings;
   [ThemeMode.LIGHT]: ThemeSettings;
-  behavior: never;
-  timer: never;
-  [Behavior.INCREMENT]: never;
-  [Behavior.RANDOM]: never;
-  [Behavior.PRESET]: never;
+  behavior?: never; // deprecated
+  timer?: never; // deprecated
+  [Behavior.INCREMENT]?: never; // deprecated
+  [Behavior.RANDOM]?: never; // deprecated
+  [Behavior.PRESET]?: never; // deprecated
 }
 
 enum HueRange {
@@ -128,13 +130,10 @@ export default class ColorCycler extends Plugin {
   statusBarItemEl: HTMLElement;
   timerId: number;
   lastSave: number | undefined = undefined;
-  themeMode: "dark" | "light" = "dark";
+  themeMode: ThemeMode = ThemeMode.BASE;
 
   async onload() {
     await this.loadSettings();
-
-    this.updateColor(this.settings.color);
-    this.updateTimer();
 
     this.addCommand({
       id: "cycle-color",
@@ -143,41 +142,51 @@ export default class ColorCycler extends Plugin {
         this.cycleColor();
       },
     });
-
     this.ribbonIconEl = this.addRibbonIcon("palette", "Cycle accent color", () => {
       this.cycleColor();
     });
-
     this.statusBarItemEl = this.addStatusBarItem();
-    this.updateStatusBar();
-    this.updateStatusBarVisibility();
-
     this.addSettingTab(new ColorCyclerSettingTab(this.app, this));
 
-    const detectTheme = () => {
-      //@ts-ignore
-      const theme = this.app.getTheme();
-      const media = window.matchMedia("(prefers-color-scheme: dark)");
-      let newThemeMode: "dark" | "light" = "dark";
+    this.update();
 
-      if (theme === "obsidian") {
-        newThemeMode = "dark";
-      } else if (theme === "moonstone") {
-        newThemeMode = "light";
-      } else if (theme === "system" && media.matches) {
-        newThemeMode = "dark";
-      } else if (theme === "system" && !media.matches) {
-        newThemeMode = "light";
-      }
-      // FIXME
-      console.log(newThemeMode);
-      if (newThemeMode !== this.themeMode) {
-        // TODO: do something
-      }
+    this.registerEvent(this.app.workspace.on("css-change", this.detectTheme.bind(this)));
+    this.detectTheme();
+  }
+
+  update() {
+    this.updateColor(this.settings.color);
+    this.updateTimer();
+    this.updateStatusBar();
+    this.updateStatusBarVisibility();
+  }
+
+  detectTheme() {
+    if (!this.settings.shouldShowSeparateThemeSettings) {
+      this.themeMode = ThemeMode.BASE;
+      return;
+    }
+
+    // @ts-ignore -- getTheme() is not officially supported
+    const theme = this.app.getTheme();
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    let newThemeMode: ThemeMode = ThemeMode.BASE;
+
+    if (theme === "obsidian") {
+      newThemeMode = ThemeMode.DARK;
+    } else if (theme === "moonstone") {
+      newThemeMode = ThemeMode.LIGHT;
+    } else if (theme === "system" && media.matches) {
+      newThemeMode = ThemeMode.DARK;
+    } else if (theme === "system" && !media.matches) {
+      newThemeMode = ThemeMode.LIGHT;
+    }
+
+    if (newThemeMode !== this.themeMode) {
       this.themeMode = newThemeMode;
-    };
-    this.registerEvent(this.app.workspace.on("css-change", detectTheme));
-    detectTheme();
+      // TODO: should this cycle or should each theme get a saved color state?
+      this.cycleColor();
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,10 +214,10 @@ export default class ColorCycler extends Plugin {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async migrateBaseThemeSettings(savedData: any) {
-    if (
-      !savedData.baseThemeSettings &&
-      (savedData.behavior || savedData.timer || savedData.increment || savedData.random || savedData.preset)
-    ) {
+    // already migrated?
+    if (savedData.baseThemeSettings) return;
+
+    if (savedData.behavior || savedData.timer || savedData.increment || savedData.random || savedData.preset) {
       this.settings.baseThemeSettings = {
         behavior: savedData?.behavior ?? DEFAULT_SETTINGS.baseThemeSettings.behavior,
         timer: {
@@ -272,8 +281,12 @@ export default class ColorCycler extends Plugin {
 
   updateTimer() {
     clearInterval(this.timerId);
-    if (this.settings.timer.isTimerEnabled && this.settings.timer.timerSeconds) {
-      const timerSeconds = bound(this.settings.timer.timerSeconds, TimerRange.MIN, TimerRange.MAX);
+    if (this.settings[this.themeMode].timer.isTimerEnabled && this.settings[this.themeMode].timer.timerSeconds) {
+      const timerSeconds = bound(
+        this.settings[this.themeMode].timer.timerSeconds || NaN,
+        TimerRange.MIN,
+        TimerRange.MAX
+      );
       this.timerId = this.registerInterval(window.setInterval(() => this.cycleColor(true), timerSeconds * 1000));
     }
   }
@@ -312,7 +325,7 @@ export default class ColorCycler extends Plugin {
 
   incrementColor(isTimer = false) {
     const currentHue = this.settings.color.h;
-    const degrees = this.settings.increment.degrees;
+    const degrees = this.settings[this.themeMode].increment.degrees;
     const newHue = currentHue + degrees;
 
     this.setColor(
@@ -326,13 +339,15 @@ export default class ColorCycler extends Plugin {
   }
 
   randomizeColor(isTimer = false) {
-    const hue = this.settings.random.isHueRandom ? Math.floor(Math.random() * HueRange.MAX) : this.settings.random.hue;
-    const saturation = this.settings.random.isSaturationRandom
+    const hue = this.settings[this.themeMode].random.isHueRandom
+      ? Math.floor(Math.random() * HueRange.MAX)
+      : this.settings[this.themeMode].random.hue;
+    const saturation = this.settings[this.themeMode].random.isSaturationRandom
       ? Math.floor(Math.random() * PercentRange.MAX)
-      : this.settings.random.saturation;
-    const lightness = this.settings.random.isLightnessRandom
+      : this.settings[this.themeMode].random.saturation;
+    const lightness = this.settings[this.themeMode].random.isLightnessRandom
       ? Math.floor(Math.random() * PercentRange.MAX)
-      : this.settings.random.lightness;
+      : this.settings[this.themeMode].random.lightness;
 
     this.setColor(
       {
@@ -346,17 +361,18 @@ export default class ColorCycler extends Plugin {
 
   cyclePresetColor(isTimer = false) {
     const nextPresetIndex =
-      this.settings.preset.currentPresetIndex + 1 >= this.settings.preset.colorList.length
+      this.settings[this.themeMode].preset.currentPresetIndex + 1 >=
+      this.settings[this.themeMode].preset.colorList.length
         ? 0
-        : this.settings.preset.currentPresetIndex + 1;
+        : this.settings[this.themeMode].preset.currentPresetIndex + 1;
 
-    this.settings.preset.currentPresetIndex = nextPresetIndex;
+    this.settings[this.themeMode].preset.currentPresetIndex = nextPresetIndex;
 
-    this.setColor(this.settings.preset.colorList[nextPresetIndex] ?? this.settings.color, isTimer);
+    this.setColor(this.settings[this.themeMode].preset.colorList[nextPresetIndex] ?? this.settings.color, isTimer);
   }
 
   cycleColor(isTimer = false) {
-    switch (this.settings.behavior) {
+    switch (this.settings[this.themeMode].behavior) {
       case Behavior.INCREMENT:
         this.incrementColor(isTimer);
         break;
@@ -379,7 +395,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
-  showColorSettings(containerEl: HTMLElement, theme?: "dark" | "light") {
+  showColorSettings(containerEl: HTMLElement, themeMode: ThemeMode) {
     new Setting(containerEl)
       .setName("Behavior")
       .setDesc("How the accent color is cycled when clicking the sidebar button.")
@@ -388,7 +404,7 @@ class ColorCyclerSettingTab extends PluginSettingTab {
           .setIcon("gear")
           .setTooltip("Advanced settings")
           .onClick(() => {
-            new BehaviorModal(this.app, this.plugin).open();
+            new BehaviorModal(this.app, this.plugin, themeMode).open();
           })
       )
       .addDropdown((dropdown) =>
@@ -398,24 +414,30 @@ class ColorCyclerSettingTab extends PluginSettingTab {
             [Behavior.RANDOM]: "Random",
             [Behavior.PRESET]: "Preset",
           })
-          .setValue(this.plugin.settings.behavior)
+          .setValue(this.plugin.settings[themeMode].behavior)
           .onChange(async (value) => {
-            this.plugin.settings.behavior = value as Behavior;
-            switch (this.plugin.settings.behavior) {
+            this.plugin.settings[themeMode].behavior = value as Behavior;
+            switch (this.plugin.settings[themeMode].behavior) {
               case Behavior.INCREMENT:
                 this.plugin.setColor({
-                  h: this.plugin.settings.increment.startAngle,
-                  s: this.plugin.settings.increment.saturation,
-                  l: this.plugin.settings.increment.lightness,
+                  h: this.plugin.settings[themeMode].increment.startAngle,
+                  s: this.plugin.settings[themeMode].increment.saturation,
+                  l: this.plugin.settings[themeMode].increment.lightness,
                 });
                 break;
               case Behavior.RANDOM:
                 this.plugin.randomizeColor();
                 break;
               case Behavior.PRESET:
-                if (this.plugin.settings.preset.colorList[this.plugin.settings.preset.currentPresetIndex]) {
+                if (
+                  this.plugin.settings[themeMode].preset.colorList[
+                    this.plugin.settings[themeMode].preset.currentPresetIndex
+                  ]
+                ) {
                   this.plugin.setColor(
-                    this.plugin.settings.preset.colorList[this.plugin.settings.preset.currentPresetIndex]
+                    this.plugin.settings[themeMode].preset.colorList[
+                      this.plugin.settings[themeMode].preset.currentPresetIndex
+                    ]
                   );
                 }
                 break;
@@ -432,8 +454,8 @@ class ColorCyclerSettingTab extends PluginSettingTab {
         "Automatically cycle the color after a specified time in seconds. Manually cycling the color will reset the timer."
       )
       .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.timer.isTimerEnabled).onChange(async (value) => {
-          this.plugin.settings.timer.isTimerEnabled = value;
+        toggle.setValue(this.plugin.settings[themeMode].timer.isTimerEnabled).onChange(async (value) => {
+          this.plugin.settings[themeMode].timer.isTimerEnabled = value;
           this.plugin.updateTimer();
           await this.plugin.saveSettings();
           this.display();
@@ -442,11 +464,11 @@ class ColorCyclerSettingTab extends PluginSettingTab {
       .addText((text) =>
         text
           .setPlaceholder("1-86400")
-          .setDisabled(!this.plugin.settings.timer.isTimerEnabled)
-          .setValue(this.plugin.settings.timer.timerSeconds.toString())
+          .setDisabled(!this.plugin.settings[themeMode].timer.isTimerEnabled)
+          .setValue(this.plugin.settings[themeMode].timer.timerSeconds.toString())
           .onChange(async (value) => {
             const newValue = value !== "" ? bound(parseInt(value), TimerRange.MIN, TimerRange.MAX) : value;
-            this.plugin.settings.timer.timerSeconds = newValue;
+            this.plugin.settings[themeMode].timer.timerSeconds = newValue;
             this.plugin.updateTimer();
             await this.plugin.saveSettings();
           })
@@ -487,9 +509,12 @@ class ColorCyclerSettingTab extends PluginSettingTab {
             .setIcon("sun")
             .setTooltip("Match light theme colors")
             .onClick(() => {
-              new BehaviorModal(this.app, this.plugin).open();
+              this.plugin.settings.darkThemeSettings = this.plugin.settings.lightThemeSettings;
+              this.display();
             })
         );
+      this.showColorSettings(containerEl, ThemeMode.DARK);
+
       new Setting(containerEl)
         .setName("Light theme colors")
         .setHeading()
@@ -498,25 +523,31 @@ class ColorCyclerSettingTab extends PluginSettingTab {
             .setIcon("moon")
             .setTooltip("Match dark theme colors")
             .onClick(() => {
-              new BehaviorModal(this.app, this.plugin).open();
+              this.plugin.settings.lightThemeSettings = this.plugin.settings.darkThemeSettings;
+              this.display();
             })
         );
+      this.showColorSettings(containerEl, ThemeMode.LIGHT);
     } else {
       new Setting(containerEl).setName("Colors").setHeading();
+      this.showColorSettings(containerEl, ThemeMode.BASE);
     }
   }
 }
 
 class BehaviorModal extends Modal {
   plugin: ColorCycler;
-  constructor(app: App, plugin: ColorCycler) {
+  themeMode: ThemeMode;
+  constructor(app: App, plugin: ColorCycler, themeMode: ThemeMode) {
     super(app);
     this.plugin = plugin;
+    this.themeMode = themeMode;
   }
 
   onOpen() {
     const { contentEl } = this;
-    switch (this.plugin.settings.behavior) {
+
+    switch (this.plugin.settings[this.themeMode].behavior) {
       case Behavior.INCREMENT:
         this.showIncrementSettings(contentEl);
         break;
@@ -551,13 +582,13 @@ class BehaviorModal extends Modal {
         slider
           .setLimits(HueRange.MIN, HueRange.MAX, 1)
           .setDynamicTooltip()
-          .setValue(this.plugin.settings.increment.startAngle)
+          .setValue(this.plugin.settings[this.themeMode].increment.startAngle)
           .onChange(async (value) => {
-            this.plugin.settings.increment.startAngle = value;
+            this.plugin.settings[this.themeMode].increment.startAngle = value;
             this.plugin.setColor({
-              h: this.plugin.settings.increment.startAngle,
-              s: this.plugin.settings.increment.saturation,
-              l: this.plugin.settings.increment.lightness,
+              h: this.plugin.settings[this.themeMode].increment.startAngle,
+              s: this.plugin.settings[this.themeMode].increment.saturation,
+              l: this.plugin.settings[this.themeMode].increment.lightness,
             });
             await this.plugin.saveSettings();
           })
@@ -570,13 +601,13 @@ class BehaviorModal extends Modal {
         slider
           .setLimits(HueRange.MIN + 1, HueRange.MAX, 1)
           .setDynamicTooltip()
-          .setValue(this.plugin.settings.increment.degrees)
+          .setValue(this.plugin.settings[this.themeMode].increment.degrees)
           .onChange(async (value) => {
-            this.plugin.settings.increment.degrees = value;
+            this.plugin.settings[this.themeMode].increment.degrees = value;
             this.plugin.setColor({
-              h: this.plugin.settings.increment.startAngle,
-              s: this.plugin.settings.increment.saturation,
-              l: this.plugin.settings.increment.lightness,
+              h: this.plugin.settings[this.themeMode].increment.startAngle,
+              s: this.plugin.settings[this.themeMode].increment.saturation,
+              l: this.plugin.settings[this.themeMode].increment.lightness,
             });
             await this.plugin.saveSettings();
           })
@@ -589,13 +620,13 @@ class BehaviorModal extends Modal {
         slider
           .setLimits(PercentRange.MIN, PercentRange.MAX, 1)
           .setDynamicTooltip()
-          .setValue(this.plugin.settings.increment.saturation)
+          .setValue(this.plugin.settings[this.themeMode].increment.saturation)
           .onChange(async (value) => {
-            this.plugin.settings.increment.saturation = value;
+            this.plugin.settings[this.themeMode].increment.saturation = value;
             this.plugin.setColor({
-              h: this.plugin.settings.increment.startAngle,
-              s: this.plugin.settings.increment.saturation,
-              l: this.plugin.settings.increment.lightness,
+              h: this.plugin.settings[this.themeMode].increment.startAngle,
+              s: this.plugin.settings[this.themeMode].increment.saturation,
+              l: this.plugin.settings[this.themeMode].increment.lightness,
             });
             await this.plugin.saveSettings();
           })
@@ -608,13 +639,13 @@ class BehaviorModal extends Modal {
         slider
           .setLimits(PercentRange.MIN, PercentRange.MAX, 1)
           .setDynamicTooltip()
-          .setValue(this.plugin.settings.increment.lightness)
+          .setValue(this.plugin.settings[this.themeMode].increment.lightness)
           .onChange(async (value) => {
-            this.plugin.settings.increment.lightness = value;
+            this.plugin.settings[this.themeMode].increment.lightness = value;
             this.plugin.setColor({
-              h: this.plugin.settings.increment.startAngle,
-              s: this.plugin.settings.increment.saturation,
-              l: this.plugin.settings.increment.lightness,
+              h: this.plugin.settings[this.themeMode].increment.startAngle,
+              s: this.plugin.settings[this.themeMode].increment.saturation,
+              l: this.plugin.settings[this.themeMode].increment.lightness,
             });
             await this.plugin.saveSettings();
           })
@@ -628,8 +659,8 @@ class BehaviorModal extends Modal {
       .setName("Randomize hue")
       .setDesc("Randomize hue angle on each click. Otherwise, use the slider to set a static hue angle.")
       .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.random.isHueRandom).onChange(async (value) => {
-          this.plugin.settings.random.isHueRandom = value;
+        toggle.setValue(this.plugin.settings[this.themeMode].random.isHueRandom).onChange(async (value) => {
+          this.plugin.settings[this.themeMode].random.isHueRandom = value;
           await this.plugin.saveSettings();
           this.refresh();
         })
@@ -638,14 +669,14 @@ class BehaviorModal extends Modal {
         slider
           .setLimits(HueRange.MIN, HueRange.MAX, 1)
           .setDynamicTooltip()
-          .setDisabled(this.plugin.settings.random.isHueRandom)
-          .setValue(this.plugin.settings.random.hue)
+          .setDisabled(this.plugin.settings[this.themeMode].random.isHueRandom)
+          .setValue(this.plugin.settings[this.themeMode].random.hue)
           .onChange(async (value) => {
-            this.plugin.settings.random.hue = value;
+            this.plugin.settings[this.themeMode].random.hue = value;
             this.plugin.setColor({
-              h: this.plugin.settings.random.hue,
-              s: this.plugin.settings.random.saturation,
-              l: this.plugin.settings.random.lightness,
+              h: this.plugin.settings[this.themeMode].random.hue,
+              s: this.plugin.settings[this.themeMode].random.saturation,
+              l: this.plugin.settings[this.themeMode].random.lightness,
             });
             await this.plugin.saveSettings();
           })
@@ -657,8 +688,8 @@ class BehaviorModal extends Modal {
         "Randomize saturation percentage on each click. Otherwise, use the slider to set a static saturation percentage."
       )
       .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.random.isSaturationRandom).onChange(async (value) => {
-          this.plugin.settings.random.isSaturationRandom = value;
+        toggle.setValue(this.plugin.settings[this.themeMode].random.isSaturationRandom).onChange(async (value) => {
+          this.plugin.settings[this.themeMode].random.isSaturationRandom = value;
           await this.plugin.saveSettings();
           this.refresh();
         })
@@ -667,14 +698,14 @@ class BehaviorModal extends Modal {
         slider
           .setLimits(PercentRange.MIN, PercentRange.MAX, 1)
           .setDynamicTooltip()
-          .setDisabled(this.plugin.settings.random.isSaturationRandom)
-          .setValue(this.plugin.settings.random.saturation)
+          .setDisabled(this.plugin.settings[this.themeMode].random.isSaturationRandom)
+          .setValue(this.plugin.settings[this.themeMode].random.saturation)
           .onChange(async (value) => {
-            this.plugin.settings.random.saturation = value;
+            this.plugin.settings[this.themeMode].random.saturation = value;
             this.plugin.setColor({
-              h: this.plugin.settings.random.hue,
-              s: this.plugin.settings.random.saturation,
-              l: this.plugin.settings.random.lightness,
+              h: this.plugin.settings[this.themeMode].random.hue,
+              s: this.plugin.settings[this.themeMode].random.saturation,
+              l: this.plugin.settings[this.themeMode].random.lightness,
             });
             await this.plugin.saveSettings();
           })
@@ -686,8 +717,8 @@ class BehaviorModal extends Modal {
         "Randomize lightness percentage on each click. Otherwise, use the slider to set a static lightness percentage."
       )
       .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.random.isLightnessRandom).onChange(async (value) => {
-          this.plugin.settings.random.isLightnessRandom = value;
+        toggle.setValue(this.plugin.settings[this.themeMode].random.isLightnessRandom).onChange(async (value) => {
+          this.plugin.settings[this.themeMode].random.isLightnessRandom = value;
           await this.plugin.saveSettings();
           this.refresh();
         })
@@ -696,14 +727,14 @@ class BehaviorModal extends Modal {
         slider
           .setLimits(PercentRange.MIN, PercentRange.MAX, 1)
           .setDynamicTooltip()
-          .setDisabled(this.plugin.settings.random.isLightnessRandom)
-          .setValue(this.plugin.settings.random.lightness)
+          .setDisabled(this.plugin.settings[this.themeMode].random.isLightnessRandom)
+          .setValue(this.plugin.settings[this.themeMode].random.lightness)
           .onChange(async (value) => {
-            this.plugin.settings.random.lightness = value;
+            this.plugin.settings[this.themeMode].random.lightness = value;
             this.plugin.setColor({
-              h: this.plugin.settings.random.hue,
-              s: this.plugin.settings.random.saturation,
-              l: this.plugin.settings.random.lightness,
+              h: this.plugin.settings[this.themeMode].random.hue,
+              s: this.plugin.settings[this.themeMode].random.saturation,
+              l: this.plugin.settings[this.themeMode].random.lightness,
             });
             await this.plugin.saveSettings();
           })
@@ -721,7 +752,7 @@ class BehaviorModal extends Modal {
           .setIcon("plus-circle")
           .setTooltip("Add color")
           .onClick(() => {
-            this.plugin.settings.preset.colorList.push({
+            this.plugin.settings[this.themeMode].preset.colorList.push({
               h: 0,
               s: 100,
               l: 50,
@@ -731,7 +762,7 @@ class BehaviorModal extends Modal {
           })
       );
 
-    this.plugin.settings.preset.colorList.forEach((_colorPreset, index) => {
+    this.plugin.settings[this.themeMode].preset.colorList.forEach((_colorPreset, index) => {
       new Setting(contentEl)
         .setName(`Color ${index + 1}`)
         .addExtraButton((button) =>
@@ -739,9 +770,11 @@ class BehaviorModal extends Modal {
             .setIcon("palette")
             .setTooltip("Set as current color")
             .onClick(async () => {
-              this.plugin.settings.preset.currentPresetIndex = index;
+              this.plugin.settings[this.themeMode].preset.currentPresetIndex = index;
               this.plugin.setColor(
-                this.plugin.settings.preset.colorList[this.plugin.settings.preset.currentPresetIndex]
+                this.plugin.settings[this.themeMode].preset.colorList[
+                  this.plugin.settings[this.themeMode].preset.currentPresetIndex
+                ]
               );
               await this.plugin.saveSettings();
             })
@@ -750,27 +783,36 @@ class BehaviorModal extends Modal {
           button
             .setIcon("trash")
             .setTooltip("Remove color")
-            .setDisabled(this.plugin.settings.preset.colorList.length === 1 && index === 0)
+            .setDisabled(this.plugin.settings[this.themeMode].preset.colorList.length === 1 && index === 0)
             .onClick(async () => {
-              this.plugin.settings.preset.colorList = [
-                ...this.plugin.settings.preset.colorList.slice(0, index),
-                ...this.plugin.settings.preset.colorList.slice(index + 1, this.plugin.settings.preset.colorList.length),
+              this.plugin.settings[this.themeMode].preset.colorList = [
+                ...this.plugin.settings[this.themeMode].preset.colorList.slice(0, index),
+                ...this.plugin.settings[this.themeMode].preset.colorList.slice(
+                  index + 1,
+                  this.plugin.settings[this.themeMode].preset.colorList.length
+                ),
               ];
-              this.plugin.settings.preset.currentPresetIndex = 0;
+              this.plugin.settings[this.themeMode].preset.currentPresetIndex = 0;
               this.plugin.setColor(
-                this.plugin.settings.preset.colorList[this.plugin.settings.preset.currentPresetIndex]
+                this.plugin.settings[this.themeMode].preset.colorList[
+                  this.plugin.settings[this.themeMode].preset.currentPresetIndex
+                ]
               );
               await this.plugin.saveSettings();
               this.refresh();
             })
         )
         .addColorPicker((color) => {
-          color.setValueHsl(this.plugin.settings.preset.colorList[index]);
+          color.setValueHsl(this.plugin.settings[this.themeMode].preset.colorList[index]);
           color.onChange(async () => {
-            this.plugin.settings.preset.colorList[index] = color.getValueHsl();
-            this.plugin.settings.preset.currentPresetIndex = index;
+            this.plugin.settings[this.themeMode].preset.colorList[index] = color.getValueHsl();
+            this.plugin.settings[this.themeMode].preset.currentPresetIndex = index;
 
-            this.plugin.setColor(this.plugin.settings.preset.colorList[this.plugin.settings.preset.currentPresetIndex]);
+            this.plugin.setColor(
+              this.plugin.settings[this.themeMode].preset.colorList[
+                this.plugin.settings[this.themeMode].preset.currentPresetIndex
+              ]
+            );
             await this.plugin.saveSettings();
           });
         });
