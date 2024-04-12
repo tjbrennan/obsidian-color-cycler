@@ -42,6 +42,7 @@ interface ThemeSettings {
   color: HSL;
   behavior: Behavior;
   timer: TimerSettings;
+  shouldCycleColorOnLoad: boolean;
   [Behavior.INCREMENT]: IncrementBehavior;
   [Behavior.RANDOM]: RandomBehavior;
   [Behavior.PRESET]: PresetBehavior;
@@ -49,7 +50,7 @@ interface ThemeSettings {
 
 interface ColorCyclerSettings {
   shouldShowStatusBar: boolean;
-  shouldShowSeparateThemeSettings: boolean;
+  shouldUseSeparateThemeSettings: boolean;
   themes: {
     [ThemeMode.BASE]: ThemeSettings;
     [ThemeMode.DARK]: ThemeSettings;
@@ -91,6 +92,7 @@ const DEFAULT_THEME_SETTINGS: ThemeSettings = {
     isTimerEnabled: false,
     timerSeconds: "",
   },
+  shouldCycleColorOnLoad: false,
   increment: {
     startAngle: 0,
     degrees: 30,
@@ -113,7 +115,7 @@ const DEFAULT_THEME_SETTINGS: ThemeSettings = {
 
 const DEFAULT_SETTINGS: ColorCyclerSettings = {
   shouldShowStatusBar: false,
-  shouldShowSeparateThemeSettings: false,
+  shouldUseSeparateThemeSettings: false,
   themes: {
     base: DEFAULT_THEME_SETTINGS,
     dark: DEFAULT_THEME_SETTINGS,
@@ -153,6 +155,10 @@ export default class ColorCycler extends Plugin {
 
     this.registerEvent(this.app.workspace.on("css-change", this.detectTheme.bind(this)));
     this.detectTheme();
+
+    if (this.settings.themes[this.themeMode].shouldCycleColorOnLoad) {
+      this.cycleColor();
+    }
   }
 
   update() {
@@ -163,7 +169,7 @@ export default class ColorCycler extends Plugin {
   }
 
   detectTheme() {
-    if (!this.settings.shouldShowSeparateThemeSettings) {
+    if (!this.settings.shouldUseSeparateThemeSettings) {
       this.themeMode = ThemeMode.BASE;
     } else {
       // @ts-ignore: getTheme() is not officially supported
@@ -194,6 +200,8 @@ export default class ColorCycler extends Plugin {
     return {
       color: savedData?.themes[mode]?.color ?? DEFAULT_SETTINGS.themes[mode].color,
       behavior: savedData?.themes[mode]?.behavior ?? DEFAULT_SETTINGS.themes[mode].behavior,
+      shouldCycleColorOnLoad:
+        savedData?.themes[mode]?.shouldCycleColorOnLoad ?? DEFAULT_SETTINGS.themes[mode].shouldCycleColorOnLoad,
       timer: {
         ...DEFAULT_SETTINGS.themes[mode].timer,
         ...savedData?.themes[mode]?.timer,
@@ -222,6 +230,8 @@ export default class ColorCycler extends Plugin {
       this.settings.themes.base = {
         color: savedData?.color ?? DEFAULT_SETTINGS.themes.base.color,
         behavior: savedData?.behavior ?? DEFAULT_SETTINGS.themes.base.behavior,
+        shouldCycleColorOnLoad:
+          savedData?.shouldCycleColorOnLoad ?? DEFAULT_SETTINGS.themes.base.shouldCycleColorOnLoad,
         timer: {
           ...DEFAULT_SETTINGS.themes.base.timer,
           ...savedData?.timer,
@@ -488,6 +498,17 @@ class ColorCyclerSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    new Setting(containerEl)
+      .setName("Cycle color on load")
+      .setDesc("Automatically cycle the color when the vault opens.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.themes[themeMode].shouldCycleColorOnLoad).onChange(async (value) => {
+          this.plugin.settings.themes[themeMode].shouldCycleColorOnLoad = value;
+          await this.plugin.saveSettings();
+          this.display();
+        })
+      );
   }
 
   display(): void {
@@ -505,18 +526,18 @@ class ColorCyclerSettingTab extends PluginSettingTab {
         })
       );
     new Setting(containerEl)
-      .setName("Separate settings for dark and light themes")
-      .setDesc("Behavior and timer can be set individually for the dark theme and light theme.")
+      .setName("Separate theme settings")
+      .setDesc("Set cycle behavior for the dark and light themes individually.")
       .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.shouldShowSeparateThemeSettings).onChange(async (value) => {
-          this.plugin.settings.shouldShowSeparateThemeSettings = value;
+        toggle.setValue(this.plugin.settings.shouldUseSeparateThemeSettings).onChange(async (value) => {
+          this.plugin.settings.shouldUseSeparateThemeSettings = value;
           await this.plugin.saveSettings();
           this.display();
           this.plugin.detectTheme();
         })
       );
 
-    if (this.plugin.settings.shouldShowSeparateThemeSettings) {
+    if (this.plugin.settings.shouldUseSeparateThemeSettings) {
       new Setting(containerEl).setName("Dark theme colors").setHeading();
       this.showColorSettings(containerEl, ThemeMode.DARK);
 
