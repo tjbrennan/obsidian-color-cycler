@@ -13,6 +13,14 @@ Color is defined using [HSL](https://developer.mozilla.org/en-US/docs/Web/CSS/co
 
 ## Configuration
 
+### Status bar
+
+The current HSL value of the accent color can be displayed in the status bar. This can be useful for debugging.
+
+### Separate theme settings
+
+Color cycler can be configured to use one set of color behaviors across dark and light themes, or the settings can be split into separate dark and light theme behaviors.
+
 ### Behavior
 
 The plugin offers three different color cycling behaviors, each with their own advanced options:
@@ -25,13 +33,15 @@ The plugin offers three different color cycling behaviors, each with their own a
 
 A timer can be set to automatically cycle the color at a specified interval in seconds. The timer resets when the plugin loads or the color is cycled manually.
 
-### Status bar
+### Cycle color on load
 
-The current HSL value of the accent color can be displayed in the status bar. This can be useful for debugging.
+The color can be cycled automatically when the plugin loads. This can be useful if you close the app before the timer has a chance to cycle the color.
 
 ## Support
 
-If you enjoy using this plugin, consider supporting my work.
+If you encounter bugs or have a feature request, feel free to create an issue on GitHub!
+
+If you enjoy using this plugin, consider supporting my work:
 
 <a href="https://www.buymeacoffee.com/tjbrennan"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=☕&slug=tjbrennan&button_colour=5F7FFF&font_colour=ffffff&font_family=Lato&outline_colour=000000&coffee_colour=FFDD00" /></a>
 <a href='https://ko-fi.com/P5P2UVA8M' target='_blank'><img height='48' style='border:0px;height:48px;' src='https://storage.ko-fi.com/cdn/kofi3.png?v=3' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
