@@ -442,31 +442,33 @@ class ColorCyclerSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.themes[themeMode].behavior)
           .onChange(async (value) => {
             this.plugin.settings.themes[themeMode].behavior = value as Behavior;
-            switch (this.plugin.settings.themes[themeMode].behavior) {
-              case Behavior.INCREMENT:
-                this.plugin.setColor({
-                  h: this.plugin.settings.themes[themeMode].increment.startAngle,
-                  s: this.plugin.settings.themes[themeMode].increment.saturation,
-                  l: this.plugin.settings.themes[themeMode].increment.lightness,
-                });
-                break;
-              case Behavior.RANDOM:
-                this.plugin.randomizeColor();
-                break;
-              case Behavior.PRESET:
-                if (
-                  this.plugin.settings.themes[themeMode].preset.colorList[
-                    this.plugin.settings.themes[themeMode].preset.currentPresetIndex
-                  ]
-                ) {
-                  this.plugin.setColor(
+            if (themeMode === this.plugin.themeMode) {
+              switch (this.plugin.settings.themes[themeMode].behavior) {
+                case Behavior.INCREMENT:
+                  this.plugin.setColor({
+                    h: this.plugin.settings.themes[themeMode].increment.startAngle,
+                    s: this.plugin.settings.themes[themeMode].increment.saturation,
+                    l: this.plugin.settings.themes[themeMode].increment.lightness,
+                  });
+                  break;
+                case Behavior.RANDOM:
+                  this.plugin.randomizeColor();
+                  break;
+                case Behavior.PRESET:
+                  if (
                     this.plugin.settings.themes[themeMode].preset.colorList[
                       this.plugin.settings.themes[themeMode].preset.currentPresetIndex
                     ]
-                  );
-                }
-                break;
-              default:
+                  ) {
+                    this.plugin.setColor(
+                      this.plugin.settings.themes[themeMode].preset.colorList[
+                        this.plugin.settings.themes[themeMode].preset.currentPresetIndex
+                      ]
+                    );
+                  }
+                  break;
+                default:
+              }
             }
             await this.plugin.saveSettings();
             this.display();
@@ -481,7 +483,9 @@ class ColorCyclerSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.themes[themeMode].timer.isTimerEnabled).onChange(async (value) => {
           this.plugin.settings.themes[themeMode].timer.isTimerEnabled = value;
-          this.plugin.updateTimer();
+          if (themeMode === this.plugin.themeMode) {
+            this.plugin.updateTimer();
+          }
           await this.plugin.saveSettings();
           this.display();
         })
@@ -494,7 +498,9 @@ class ColorCyclerSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             const newValue = value !== "" ? bound(parseInt(value), TimerRange.MIN, TimerRange.MAX) : value;
             this.plugin.settings.themes[themeMode].timer.timerSeconds = newValue;
-            this.plugin.updateTimer();
+            if (themeMode === this.plugin.themeMode) {
+              this.plugin.updateTimer();
+            }
             await this.plugin.saveSettings();
           })
       );
@@ -600,11 +606,13 @@ class BehaviorModal extends Modal {
           .setValue(this.plugin.settings.themes[this.themeMode].increment.startAngle)
           .onChange(async (value) => {
             this.plugin.settings.themes[this.themeMode].increment.startAngle = value;
-            this.plugin.setColor({
-              h: this.plugin.settings.themes[this.themeMode].increment.startAngle,
-              s: this.plugin.settings.themes[this.themeMode].increment.saturation,
-              l: this.plugin.settings.themes[this.themeMode].increment.lightness,
-            });
+            if (this.themeMode === this.plugin.themeMode) {
+              this.plugin.setColor({
+                h: this.plugin.settings.themes[this.themeMode].increment.startAngle,
+                s: this.plugin.settings.themes[this.themeMode].increment.saturation,
+                l: this.plugin.settings.themes[this.themeMode].increment.lightness,
+              });
+            }
             await this.plugin.saveSettings();
           })
       );
@@ -619,11 +627,13 @@ class BehaviorModal extends Modal {
           .setValue(this.plugin.settings.themes[this.themeMode].increment.degrees)
           .onChange(async (value) => {
             this.plugin.settings.themes[this.themeMode].increment.degrees = value;
-            this.plugin.setColor({
-              h: this.plugin.settings.themes[this.themeMode].increment.startAngle,
-              s: this.plugin.settings.themes[this.themeMode].increment.saturation,
-              l: this.plugin.settings.themes[this.themeMode].increment.lightness,
-            });
+            if (this.themeMode === this.plugin.themeMode) {
+              this.plugin.setColor({
+                h: this.plugin.settings.themes[this.themeMode].increment.startAngle,
+                s: this.plugin.settings.themes[this.themeMode].increment.saturation,
+                l: this.plugin.settings.themes[this.themeMode].increment.lightness,
+              });
+            }
             await this.plugin.saveSettings();
           })
       );
@@ -638,11 +648,13 @@ class BehaviorModal extends Modal {
           .setValue(this.plugin.settings.themes[this.themeMode].increment.saturation)
           .onChange(async (value) => {
             this.plugin.settings.themes[this.themeMode].increment.saturation = value;
-            this.plugin.setColor({
-              h: this.plugin.settings.themes[this.themeMode].increment.startAngle,
-              s: this.plugin.settings.themes[this.themeMode].increment.saturation,
-              l: this.plugin.settings.themes[this.themeMode].increment.lightness,
-            });
+            if (this.themeMode === this.plugin.themeMode) {
+              this.plugin.setColor({
+                h: this.plugin.settings.themes[this.themeMode].increment.startAngle,
+                s: this.plugin.settings.themes[this.themeMode].increment.saturation,
+                l: this.plugin.settings.themes[this.themeMode].increment.lightness,
+              });
+            }
             await this.plugin.saveSettings();
           })
       );
@@ -657,11 +669,13 @@ class BehaviorModal extends Modal {
           .setValue(this.plugin.settings.themes[this.themeMode].increment.lightness)
           .onChange(async (value) => {
             this.plugin.settings.themes[this.themeMode].increment.lightness = value;
-            this.plugin.setColor({
-              h: this.plugin.settings.themes[this.themeMode].increment.startAngle,
-              s: this.plugin.settings.themes[this.themeMode].increment.saturation,
-              l: this.plugin.settings.themes[this.themeMode].increment.lightness,
-            });
+            if (this.themeMode === this.plugin.themeMode) {
+              this.plugin.setColor({
+                h: this.plugin.settings.themes[this.themeMode].increment.startAngle,
+                s: this.plugin.settings.themes[this.themeMode].increment.saturation,
+                l: this.plugin.settings.themes[this.themeMode].increment.lightness,
+              });
+            }
             await this.plugin.saveSettings();
           })
       );
@@ -688,11 +702,13 @@ class BehaviorModal extends Modal {
           .setValue(this.plugin.settings.themes[this.themeMode].random.hue)
           .onChange(async (value) => {
             this.plugin.settings.themes[this.themeMode].random.hue = value;
-            this.plugin.setColor({
-              h: this.plugin.settings.themes[this.themeMode].random.hue,
-              s: this.plugin.settings.themes[this.themeMode].random.saturation,
-              l: this.plugin.settings.themes[this.themeMode].random.lightness,
-            });
+            if (this.themeMode === this.plugin.themeMode) {
+              this.plugin.setColor({
+                h: this.plugin.settings.themes[this.themeMode].random.hue,
+                s: this.plugin.settings.themes[this.themeMode].random.saturation,
+                l: this.plugin.settings.themes[this.themeMode].random.lightness,
+              });
+            }
             await this.plugin.saveSettings();
           })
       );
@@ -719,11 +735,13 @@ class BehaviorModal extends Modal {
           .setValue(this.plugin.settings.themes[this.themeMode].random.saturation)
           .onChange(async (value) => {
             this.plugin.settings.themes[this.themeMode].random.saturation = value;
-            this.plugin.setColor({
-              h: this.plugin.settings.themes[this.themeMode].random.hue,
-              s: this.plugin.settings.themes[this.themeMode].random.saturation,
-              l: this.plugin.settings.themes[this.themeMode].random.lightness,
-            });
+            if (this.themeMode === this.plugin.themeMode) {
+              this.plugin.setColor({
+                h: this.plugin.settings.themes[this.themeMode].random.hue,
+                s: this.plugin.settings.themes[this.themeMode].random.saturation,
+                l: this.plugin.settings.themes[this.themeMode].random.lightness,
+              });
+            }
             await this.plugin.saveSettings();
           })
       );
@@ -750,11 +768,13 @@ class BehaviorModal extends Modal {
           .setValue(this.plugin.settings.themes[this.themeMode].random.lightness)
           .onChange(async (value) => {
             this.plugin.settings.themes[this.themeMode].random.lightness = value;
-            this.plugin.setColor({
-              h: this.plugin.settings.themes[this.themeMode].random.hue,
-              s: this.plugin.settings.themes[this.themeMode].random.saturation,
-              l: this.plugin.settings.themes[this.themeMode].random.lightness,
-            });
+            if (this.themeMode === this.plugin.themeMode) {
+              this.plugin.setColor({
+                h: this.plugin.settings.themes[this.themeMode].random.hue,
+                s: this.plugin.settings.themes[this.themeMode].random.saturation,
+                l: this.plugin.settings.themes[this.themeMode].random.lightness,
+              });
+            }
             await this.plugin.saveSettings();
           })
       );
@@ -790,13 +810,16 @@ class BehaviorModal extends Modal {
             .setTooltip("Set as current color")
             .onClick(async () => {
               this.plugin.settings.themes[this.themeMode].preset.currentPresetIndex = index;
-              this.plugin.setColor(
-                this.plugin.settings.themes[this.themeMode].preset.colorList[
-                  this.plugin.settings.themes[this.themeMode].preset.currentPresetIndex
-                ]
-              );
+              if (this.themeMode === this.plugin.themeMode) {
+                this.plugin.setColor(
+                  this.plugin.settings.themes[this.themeMode].preset.colorList[
+                    this.plugin.settings.themes[this.themeMode].preset.currentPresetIndex
+                  ]
+                );
+              }
               await this.plugin.saveSettings();
             })
+            .setDisabled(this.themeMode !== this.plugin.themeMode)
         )
         .addExtraButton((button) =>
           button
@@ -812,11 +835,13 @@ class BehaviorModal extends Modal {
                 ),
               ];
               this.plugin.settings.themes[this.themeMode].preset.currentPresetIndex = 0;
-              this.plugin.setColor(
-                this.plugin.settings.themes[this.themeMode].preset.colorList[
-                  this.plugin.settings.themes[this.themeMode].preset.currentPresetIndex
-                ]
-              );
+              if (this.themeMode === this.plugin.themeMode) {
+                this.plugin.setColor(
+                  this.plugin.settings.themes[this.themeMode].preset.colorList[
+                    this.plugin.settings.themes[this.themeMode].preset.currentPresetIndex
+                  ]
+                );
+              }
               await this.plugin.saveSettings();
               this.refresh();
             })
@@ -826,12 +851,13 @@ class BehaviorModal extends Modal {
           color.onChange(async () => {
             this.plugin.settings.themes[this.themeMode].preset.colorList[index] = color.getValueHsl();
             this.plugin.settings.themes[this.themeMode].preset.currentPresetIndex = index;
-
-            this.plugin.setColor(
-              this.plugin.settings.themes[this.themeMode].preset.colorList[
-                this.plugin.settings.themes[this.themeMode].preset.currentPresetIndex
-              ]
-            );
+            if (this.themeMode === this.plugin.themeMode) {
+              this.plugin.setColor(
+                this.plugin.settings.themes[this.themeMode].preset.colorList[
+                  this.plugin.settings.themes[this.themeMode].preset.currentPresetIndex
+                ]
+              );
+            }
             await this.plugin.saveSettings();
           });
         });
