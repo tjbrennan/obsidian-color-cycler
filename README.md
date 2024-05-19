@@ -2,7 +2,7 @@
 
 Do you prefer the default Obsidian theme but get bored with your accent color quickly? Add some spice to your vanilla with Color cycler!
 Use this plugin to dynamically change the accent color via the ribbon menu or command palette.
-Cycle behavior can be configured to increment, random, or preset colors.
+Cycle behavior can be configured to increment, random, or preset colors. Cycling can also happen automatically at a specified interval.
 
 Color is defined using [HSL](https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/hsl).
 
@@ -25,9 +25,9 @@ Color cycler can be configured to use one set of color behaviors across dark and
 
 The plugin offers three different color cycling behaviors, each with their own advanced options:
 
-- Increment: Cycle through the color wheel at a specified angle
-- Random: Randomly select a color
-- Preset: Cycle through a list of preset colors
+- **Increment**: Cycle through the color wheel at a specified angle
+- **Random**: Randomly select a color
+- **Preset**: Cycle through a list of preset colors
 
 ### Timer
 
@@ -39,7 +39,7 @@ The color can be cycled automatically when the plugin loads. This can be useful 
 
 ## Support
 
-If you encounter bugs or have a feature request, feel free to create an issue on GitHub!
+Thanks for using this plugin! If you encounter bugs or have a feature request, please [create an issue](https://github.com/tjbrennan/obsidian-color-cycler/issues) on GitHub.
 
 If you enjoy using this plugin, consider supporting my work:
 
