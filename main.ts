@@ -223,8 +223,8 @@ export default class ColorCycler extends Plugin {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async migrateBaseThemeSettings(savedData: any) {
-    // already migrated?
-    if (savedData.themes) return savedData;
+    // new install or already migrated?
+    if (!savedData || savedData.themes) return savedData;
 
     if (savedData.behavior || savedData.timer || savedData.increment || savedData.random || savedData.preset) {
       this.settings.themes.base = {
